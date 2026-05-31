@@ -13,10 +13,10 @@ https://youtu.be/pfRlhW-oROw
 - 🎤 **Voice Commands** - Wake word recognition ("Hey Jarvis") with speech-to-text
 - 🚀 **App Control** - Open, close, and manage Windows applications
 - 🔊 **Media Control** - Play/pause, next/previous tracks, volume and brightness control
-- 📱 **Smart Integration** - WhatsApp messaging, Spotify playback, web browsing
+- 📱 **Smart Integration** -Spotify playback, web browsing
 - 💾 **Memory System** - Remembers user facts and interaction history
 - 🤖 **AI-Powered** - Uses Ollama with gemma2:2b for intelligent command routing
-- 🖥️ **Dual Clients** - Works with Windows desktop (PC) and Android clients
+- 🖥️ **Windows Clients** - Works with Windows desktop (PC)
 - ⚙️ **Customizable** - Extensive configuration options via environment variables
 
 ## Requirements
