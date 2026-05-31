@@ -1,0 +1,6 @@
+jarvis_memory.sqlite3
+.env
+contacts.json
+__pycache__/
+*.pyc
+.venv/
