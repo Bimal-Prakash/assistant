@@ -10,13 +10,13 @@ https://youtu.be/pfRlhW-oROw
 
 ## Features
 
-- 🎤 **Voice Commands** - Wake word recognition ("Hey Jarvis") with speech-to-text
+- 🎤 **Voice Commands** - Wake word recognition ("Jarvis") with speech-to-text
 - 🚀 **App Control** - Open, close, and manage Windows applications
 - 🔊 **Media Control** - Play/pause, next/previous tracks, volume and brightness control
 - 📱 **Smart Integration** -Spotify playback, web browsing
 - 💾 **Memory System** - Remembers user facts and interaction history
 - 🤖 **AI-Powered** - Uses Ollama with gemma2:2b for intelligent command routing
-- 🖥️ **Windows Clients** - Works with Windows desktop (PC)
+- 🖥️ **Windows Clients** - Works with Windows desktop (PC) "shutdown, restart and sleep works with a confirmation mode"
 - ⚙️ **Customizable** - Extensive configuration options via environment variables
 
 ## Requirements
