@@ -30,6 +30,7 @@ from tools.executors import (
     exec_analyze_screen, exec_ask_chatgpt_visually
 )
 from tools.executors.file_system import exec_list_directory, exec_read_file, exec_write_file
+from tools.executors.obsidian import exec_search_obsidian, exec_read_obsidian_note
 
 logger = logging.getLogger("jarvis.tools.registry")
 
@@ -335,6 +336,24 @@ def build_default_registry() -> ToolRegistry:
             "content": {"type": "string", "description": "The exact text content to write to the file"}
         }, "required": ["file_path", "content"]},
         executor=exec_write_file,
+    ))
+
+    registry.register(Tool(
+        name="search_obsidian",
+        description="Search all markdown files in the user's Obsidian vault for a specific topic or keyword. Use this when the user refers to 'this' or 'that' related to their notes.",
+        parameters={"properties": {
+            "query": {"type": "string", "description": "The word or phrase to search for in notes"}
+        }, "required": ["query"]},
+        executor=exec_search_obsidian,
+    ))
+
+    registry.register(Tool(
+        name="read_obsidian_note",
+        description="Read the entire content of a specific Obsidian note by its file name.",
+        parameters={"properties": {
+            "note_name": {"type": "string", "description": "The exact name of the note to read (with or without .md)"}
+        }, "required": ["note_name"]},
+        executor=exec_read_obsidian_note,
     ))
 
     return registry

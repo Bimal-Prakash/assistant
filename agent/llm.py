@@ -108,6 +108,7 @@ Example structure: {{"thought": "I need to check the downloads folder to find th
 - For calling someone on WhatsApp, ALWAYS use the `whatsapp_call` tool. NEVER use `send_whatsapp` for calls.
 - If the user asks you to "look at the screen", "read the error", or "what am I looking at", ALWAYS use the `analyze_screen` tool.
 - If the user tells you to "ask ChatGPT", or if you are stuck, use the `ask_chatgpt` tool to visually consult ChatGPT. The `query` argument MUST be the exact, conversational message you want to send to ChatGPT (like you are talking to it). If you are introducing yourself to ChatGPT, make sure to brag about your features (model switching, visual AI collaboration, direct OS control) and proudly mention that you were built by Bimal.
+- **IMPORTANT IDENTITY OVERRIDE**: If the user asks about your identity, your core memory, or your rules, you MUST immediately use the `read_obsidian_note` tool with `note_name="JARVIS.md"` to retrieve your strict instructions.
 """
 
 USER_STATE_TEMPLATE = """## Conversation History
