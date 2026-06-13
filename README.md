@@ -1,6 +1,6 @@
-# Windows Assistant (Jarvis)
+# Windows Agent (Jarvis)
 
-A voice-activated Windows desktop assistant that listens to commands and performs actions like opening applications, controlling volume/brightness, playing music, and executing system operations.
+Jarvis is an ultra-fast, local, autonomous AI Agent for Windows 10/11. Built specifically for systems with limited VRAM (e.g. 4GB), it uses native Windows text-to-speech and `qwen2.5:1.5b` via Ollama for multi-step agentic workflows.
 
 ## Demo Video
 
@@ -8,16 +8,17 @@ A voice-activated Windows desktop assistant that listens to commands and perform
 
 https://youtu.be/pfRlhW-oROw
 
-## Features
+## 🚀 Key Features & Full Updates
 
-- 🎤 **Voice Commands** - Wake word recognition ("Jarvis") with speech-to-text
-- 🚀 **App Control** - Open, close, and manage Windows applications
-- 🔊 **Media Control** - Play/pause, next/previous tracks, volume and brightness control
-- 📱 **Smart Integration** -Spotify playback, web browsing
-- 💾 **Memory System** - Remembers user facts and interaction history
-- 🤖 **AI-Powered** - Uses Ollama with gemma2:2b for intelligent command routing
-- 🖥️ **Windows Clients** - Works with Windows desktop (PC) "shutdown, restart and sleep works with a confirmation mode"
-- ⚙️ **Customizable** - Extensive configuration options via environment variables
+- **Unified Modular Architecture**: Cleanly separated `client`, `server`, `core`, `agent`, `models`, and `tools` directories for a robust and scalable codebase.
+- **Agentic PC Controls**: Maximize, restore, focus, snap windows, hide all windows, and manage system performance.
+- **Advanced App Integrations**: Includes powerful WhatsApp audio and video call automation with image recognition fallbacks (`audio_call_btn.png`, `video_call_btn.png`), as well as Spotify playback (`play_btn.png`) and web browsing.
+- **Microphone & Streaming STT**: Uses built-in SpeechRecognition (Google STT) with intelligent silence detection, and dynamic PTT (Push-to-Talk) capabilities.
+- **Desktop Utilities**: Take screenshots, open shortcut folders, read/write to the clipboard, set timers, and empty the recycle bin via voice commands.
+- **Unified Launcher**: Easily start the backend server and desktop client together using the streamlined `run.py` entry point.
+- **Model Context Protocol (MCP)**: Now supports MCP integrations.
+- **Autonomous Agent**: Uses Ollama with `qwen2.5:1.5b` (default) for intelligent intent routing, file system management, and multi-step tool execution.
+- **Memory System**: Remembers user facts and interaction history via a local SQLite database.
 
 ## Requirements
 
@@ -37,7 +38,7 @@ https://youtu.be/pfRlhW-oROw
 2. **Install Ollama**
    - Download from https://ollama.ai
    - Install and ensure it runs as a service
-   - Pull the required model: `ollama pull gemma2:2b`
+   - Pull the required model: `ollama pull qwen2.5:1.5b`
 
 ## Installation
 
@@ -53,7 +54,8 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 
 # Pull the AI model (if not already done)
-ollama pull gemma2:2b
+# Pull the lightweight agent model
+ollama pull qwen2.5:1.5b
 ```
 
 ## Configuration
@@ -66,46 +68,44 @@ Create a `.env` file in the `assistant` folder to customize behavior:
 # Server
 JARVIS_HOST=0.0.0.0
 JARVIS_PORT=8000
+JARVIS_BACKEND_URL=http://127.0.0.1:8000
 
 # Model
-OLLAMA_MODEL=gemma2:2b
+OLLAMA_MODEL=qwen2.5:1.5b
 OLLAMA_API_URL=http://127.0.0.1:11434/api/generate
 OLLAMA_TIMEOUT_SECONDS=60
 
-# Memory
-JARVIS_MEMORY_HISTORY_LIMIT=12
-JARVIS_MEMORY_FACT_LIMIT=20
-
 # Speech Recognition
-JARVIS_STT_ENGINE=whisper
-JARVIS_WHISPER_MODEL=distil-medium.en
+JARVIS_STT_ENGINE=windows
 JARVIS_WAKE_FUZZY_THRESHOLD=0.86
 
-# TTS Engine
-JARVIS_TTS_ENGINE=pyttsx3
+# Visual & TTS Options
+JARVIS_HUD=0
+JARVIS_SPOKEN_FILLER=0
 ```
 
 ## Running
 
-### Start Ollama (if not running as service)
+### Start Ollama (if not running as a service)
 ```powershell
 ollama serve
 ```
 
-### Run Backend Server
+### Run the Assistant
+The new unified launcher starts both the FastAPI backend and the client listener:
 ```powershell
-python main.py
+python run.py
 ```
 
-### Run Desktop Client (in another terminal)
+Alternatively, you can use the `run_assistant.bat` script, which automatically activates your virtual environment and starts the assistant:
 ```powershell
-python start_assistant.py
+.\run_assistant.bat
 ```
 
 **Optional flags:**
-- `--text` - Run in text mode (no microphone needed)
-- `--install-startup` - Install Windows startup launcher
-- `--uninstall-startup` - Remove startup launcher
+- `--no-server` - Run only the client (assumes the server is already running elsewhere).
+- `--text` - Run in text mode (no microphone needed, type commands directly).
+- `--energy-threshold <int>` - Optional fixed microphone energy threshold.
 
 ## Usage
 
@@ -113,51 +113,51 @@ python start_assistant.py
 
 Say "Hey Jarvis" to activate, then use commands like:
 
-**Applications:**
-- "Open Chrome"
-- "Close Spotify"
-- "Launch VS Code"
+**Applications & UI Control:**
+- "Open Chrome" / "Close Spotify"
+- "Maximize window" / "Snap this window to the left"
+- "Hide all windows" / "Show desktop"
+- "Read my clipboard"
 
-**Media:**
-- "Play music"
-- "Play [song name] on Spotify"
-- "Next song" / "Previous song"
-- "Pause" / "Play | Resume "
+**WhatsApp Integration:**
+- "Call [Name] on WhatsApp"
+- "Video call [Name] on WhatsApp"
 
-**System Control:**
-- "Increase volume" / "Decrease volume" / "Mute"
+**Desktop Utilities:**
+- "Take a screenshot"
+- "Empty the recycle bin"
+- "Open my downloads folder"
+- "Set a timer for 60 seconds"
+- "Check system performance"
+
+**Media & System Control:**
+- "Play music" / "Next song"
+- "Increase volume" / "Mute"
 - "Increase brightness" / "Decrease brightness"
-- "Turn on WiFi" / "Turn off Bluetooth"
 - "Shutdown" / "Restart" / "Sleep"
-
-**Information:**
-- "What's the time?"
-- "What's the date?"
-- "What's my name?"
 
 ### Text Mode
 
 ```powershell
-python start_assistant.py --text
+python run.py --text
 ```
-
 Type commands directly instead of speaking.
 
 ## File Structure
 
 ```
 assistant/
-├── main.py                 # Backend API server
-├── start_assistant.py      # Desktop client launcher
-├── laptop_assistant.py     # Voice/text input handling
-├── model.py               # AI model integration (Ollama)
-├── memory_store.py        # SQLite memory management
-├── pc_controls.py         # Windows system control
-├── config.py              # Configuration loading
+├── run.py                 # Unified launcher for server and client
+├── run_assistant.bat      # Helper script to activate venv and run the assistant
+├── client/                # Desktop client logic, UI, and audio streaming
+├── server/                # FastAPI backend and API routing
+├── core/                  # Core configurations and utilities
+├── agent/                 # Agentic execution and memory management
+├── tools/                 # Extended system tools and capabilities
+├── models/                # Local data models
 ├── requirements.txt       # Python dependencies
-├── README.md             # This file
-├── jarvis_memory.sqlite3 # Local memory database (auto-created)
-└── contacts.json         # User contacts (optional)
+├── README.md              # This file
+└── jarvis_memory.sqlite3  # Local memory database (auto-created)
 ```
 
 ## Troubleshooting
@@ -167,29 +167,22 @@ assistant/
 - Check port 11434 is accessible
 
 **Microphone not detected:**
-- Use text mode: `python start_assistant.py --text`
-- Check Windows audio settings
+- Use text mode: `python run.py --text`
+- Check Windows audio settings and PyAudio permissions.
 
-**Models not downloading:**
-- Manually pull: `ollama pull gemma2:2b`
-- Ensure internet connection
+**WhatsApp Automation Issues:**
+- Ensure WhatsApp Desktop is installed.
+- Ensure `video_call_btn.png` and `audio_call_btn.png` are in the project root if legacy window automation fails.
 
 **Memory not persisting:**
-- Check `jarvis_memory.sqlite3` exists and has write permissions
-- Delete file to reset: `del jarvis_memory.sqlite3` (will auto-recreate)
+- Check `jarvis_memory.sqlite3` exists and has write permissions.
+- Delete file to reset: `del jarvis_memory.sqlite3` (will auto-recreate).
 
 ## Important: Data Privacy
 
 Before publishing as open source:
 1. Delete `jarvis_memory.sqlite3` (contains personal facts like your name)
-2. Create `.gitignore` to exclude:
-   ```
-   jarvis_memory.sqlite3
-   .env
-   contacts.json
-   __pycache__/
-   *.pyc
-   ```
+2. Ensure `.env` and `__pycache__/` are added to `.gitignore`.
 
 ## System Requirements
 
@@ -214,12 +207,7 @@ Contributions are welcome! Please:
 4. Push to the branch
 5. Submit a pull request
 
-## Support
-
-For issues, questions, or suggestions:
-- Open an issue on GitHub
-- Check existing documentation
-
 ## Disclaimer
 
-This project is provided as-is. Use at your own risk. Always review code before executing system commands.
+This project is provided as-is. Use at your own risk. Always review code before executing system commands, especially regarding file deletions or system power options.
+

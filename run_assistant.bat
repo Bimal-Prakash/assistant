@@ -1,3 +1,4 @@
 @echo off
 cd /d "%~dp0"
-python start_assistant.py
+call .\.venv\Scripts\activate
+python run.py
