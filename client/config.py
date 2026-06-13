@@ -62,8 +62,7 @@ WEB_ALIASES = {
     "copilot": "https://copilot.microsoft.com",
     "reddit": "https://www.reddit.com",
     "twitter": "https://x.com",
-    "x": "https://x.com",
-    "spankbang": "https://spankbang.com"
+    "x": "https://x.com"
 }
 
 LOW_CONFIDENCE_THRESHOLD = 0.68

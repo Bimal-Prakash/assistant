@@ -9,13 +9,21 @@ def _normalize_spotify_query(raw_query: str) -> Optional[str]:
         return None
 
     corrections = {
-        "roberry": "robbery",
-        "robary": "robbery",
-        "robbary": "robbery",
-        "jews world": "juice wrld",
-        "use world": "juice wrld",
-        "juice world": "juice wrld",
-        "juicewrld": "juice wrld",
+        "the weekend": "the weeknd",
+        "tailor swift": "taylor swift",
+        "billy eyelash": "billie eilish",
+        "billy eilish": "billie eilish",
+        "do a lipa": "dua lipa",
+        "ed shiran": "ed sheeran",
+        "ed sheerin": "ed sheeran",
+        "m and m": "eminem",
+        "m&m": "eminem",
+        "megan the stallion": "megan thee stallion",
+        "playboy carti": "playboi carti",
+        "snoop dog": "snoop dogg",
+        "a sap rocky": "a$ap rocky",
+        "asap rocky": "a$ap rocky",
+        "kendrick lemar": "kendrick lamar"
     }
     for src, dst in corrections.items():
         text = re.sub(rf"\b{re.escape(src)}\b", dst, text)
