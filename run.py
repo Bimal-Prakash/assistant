@@ -29,8 +29,6 @@ if _env_path.exists():
     except Exception:
         pass
 
-os.environ.setdefault("OLLAMA_MODEL", "qwen2.5:1.5b")
-os.environ.setdefault("JARVIS_STT_ENGINE", "windows")
 os.environ.setdefault("JARVIS_SKIP_INTERNAL_STT_IMPORTS", "1")
 os.environ.setdefault("JARVIS_HUD", "0")
 os.environ.setdefault("JARVIS_SPOKEN_FILLER", "0")

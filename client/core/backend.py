@@ -59,7 +59,7 @@ class BackendMixin:
             def send_command(self, text: str) -> Dict[str, Any]:
                 session_id = getattr(self, "session_id", "default")
                 payload = {"text": text, "client": "pc", "session_id": session_id}
-                response = requests.post(f"{self.backend_url}/command", json=payload, timeout=60)
+                response = requests.post(f"{self.backend_url}/command", json=payload, timeout=300)
                 response.raise_for_status()
                 body = response.json()
                 if not isinstance(body, dict):

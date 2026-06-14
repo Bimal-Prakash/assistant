@@ -39,7 +39,7 @@ def exec_analyze_screen(query: str) -> str:
         result = data.get("response", "").strip()
         
         if not result:
-            return "The vision model returned an empty response."
+            return "The vision model returned an empty response. Do NOT retry this tool."
             
         return result
         

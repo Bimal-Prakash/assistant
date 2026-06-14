@@ -1,5 +1,0 @@
-dont use this files i forgets the script to turn on venv so i created
-
-.\.venv\Scripts\activate
-
-python run.py
