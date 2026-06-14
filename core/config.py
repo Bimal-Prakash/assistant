@@ -26,7 +26,7 @@ HOST = os.getenv("JARVIS_HOST", "0.0.0.0")
 PORT = int(os.getenv("JARVIS_PORT", "8000"))
 
 OLLAMA_API_URL = os.getenv("OLLAMA_API_URL", "http://127.0.0.1:11434/api/generate")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:1.5b")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL")
 OLLAMA_TIMEOUT_SECONDS = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "60"))
 OLLAMA_KEEP_ALIVE_SECONDS = int(os.getenv("OLLAMA_KEEP_ALIVE_SECONDS", "0"))
 
@@ -35,7 +35,9 @@ CONTACTS_FILE = BASE_DIR / "contacts.json"
 WAKE_WORDS = [
     "hey jarvis",
     "jarvis",
-    "jarvis,",
+    "jarvi",
+    "jarv",
+    "jar"
 ]
 
 # External MCP Servers to boot on startup

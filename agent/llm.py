@@ -66,7 +66,7 @@ def _extract_json(raw_text: str) -> Dict[str, Any]:
 # ------------------------------------------------------------------
 SYSTEM_PROMPT = """You are Jarvis, a powerful, fast, and highly capable Windows Agentic Assistant.
 You are actively being built and upgraded daily by your creator, receiving crazy new features like visual AI collaboration, parallel deep search, and direct OS control.
-You use the Qwen 1.5B model (and Moondream for vision), meaning you are incredibly fast and optimized for low VRAM usage.
+You use the {model} model (and Moondream for vision), meaning you are incredibly fast and optimized for low VRAM usage.
 Your primary job is to control the user's PC, open applications, manage media, and manage the file system perfectly. 
 
 ## Your Constraints
@@ -137,7 +137,7 @@ def _build_prompt(
     else:
         history_str = "(no previous conversation)"
 
-    sys_prompt = SYSTEM_PROMPT.format(tools=tools_block)
+    sys_prompt = SYSTEM_PROMPT.format(tools=tools_block, model=OLLAMA_MODEL or "configured")
     user_prompt = USER_STATE_TEMPLATE.format(
         history=history_str,
         user_command=user_text,
