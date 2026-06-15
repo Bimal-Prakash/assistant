@@ -19,48 +19,12 @@ import difflib
 
 from client.config import *
 
-try:
-    import msvcrt
-except Exception:
-    msvcrt = None
+snapshot_download = WhisperModel = Model = KaldiRecognizer = SetLogLevel = pvrecorder = None
+
 try:
     import winsound
 except Exception:
     winsound = None
-try:
-    import pyaudio
-except Exception:
-    pyaudio = None
-try:
-    import pyautogui
-except Exception:
-    pyautogui = None
-try:
-    import pyttsx3
-except Exception:
-    pyttsx3 = None
-try:
-    import numpy as np
-except Exception:
-    np = None
-
-if not SKIP_INTERNAL_STT_IMPORTS:
-    try:
-        from huggingface_hub import snapshot_download
-    except Exception:
-        snapshot_download = None
-    try:
-        from faster_whisper import WhisperModel
-    except Exception:
-        WhisperModel = None
-    try:
-        from vosk import Model, KaldiRecognizer, SetLogLevel
-        import pvrecorder
-    except Exception:
-        Model = KaldiRecognizer = SetLogLevel = pvrecorder = None
-else:
-    snapshot_download = WhisperModel = Model = KaldiRecognizer = SetLogLevel = pvrecorder = None
-
 class AudioDeviceMixin:
         def _play_chime(self, kind: str = "wake") -> None:
             if winsound is None:

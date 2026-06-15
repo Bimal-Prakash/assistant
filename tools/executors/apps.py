@@ -26,6 +26,6 @@ def exec_minimize_app(app: str) -> str:
     if not app:
         return "Error: app name is required."
     return json.dumps({
-        "_client_action": "minimize_app",
-        "app": app.strip().lower(),
+        "_client_action": "press_shortcut",
+        "shortcut": "win+d",
     })

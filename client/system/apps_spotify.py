@@ -20,26 +20,9 @@ from client.config import *
 from client.ui import StatusHud
 
 try:
-    import msvcrt
-except Exception:
-    msvcrt = None
-try:
-    import pyaudio
-except Exception:
-    pyaudio = None
-try:
     import pyautogui
 except Exception:
     pyautogui = None
-try:
-    import pyttsx3
-except Exception:
-    pyttsx3 = None
-try:
-    import numpy as np
-except Exception:
-    np = None
-
 class SpotifyMixin:
             def _focus_spotify_window(self) -> None:
                 if pyautogui is None:

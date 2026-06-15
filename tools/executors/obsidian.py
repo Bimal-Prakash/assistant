@@ -8,6 +8,7 @@ import os
 import glob
 import logging
 from typing import Optional
+# pyrefly: ignore [missing-import]
 from dotenv import load_dotenv
 
 load_dotenv()

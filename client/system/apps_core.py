@@ -20,26 +20,9 @@ from client.config import *
 from client.ui import StatusHud
 
 try:
-    import msvcrt
-except Exception:
-    msvcrt = None
-try:
-    import pyaudio
-except Exception:
-    pyaudio = None
-try:
     import pyautogui
 except Exception:
     pyautogui = None
-try:
-    import pyttsx3
-except Exception:
-    pyttsx3 = None
-try:
-    import numpy as np
-except Exception:
-    np = None
-
 class AppManagementMixin:
             def _suggest_app_name(self, raw_name: str) -> Optional[str]:
                 normalized = self._normalize_text_command(raw_name)
@@ -78,9 +61,6 @@ class AppManagementMixin:
                 raw_app = re.sub(r"\s+app$", "", raw_app).strip()
                 self.pending_alias_suggestion = None
                 app = self.dynamic_aliases.get(raw_app, APP_ALIASES.get(raw_app, raw_app))
-                if app in WEB_ALIASES:
-                    webbrowser.open(WEB_ALIASES[app])
-                    return f"Opening {app} in browser"
                 app_map = {
                     "chrome": ["cmd", "/c", "start", "chrome"],
                     "notepad": ["notepad"],
@@ -137,6 +117,10 @@ class AppManagementMixin:
                         self._handle_post_open_action(app, post_text)
                         return f"Opening {app_name}"
         
+                    if app in WEB_ALIASES:
+                        webbrowser.open(WEB_ALIASES[app])
+                        return f"Opening {app_name} in browser"
+
                     web_fallbacks = {
                         "youtube": "https://www.youtube.com/",
                     }
@@ -158,10 +142,17 @@ class AppManagementMixin:
                     self.pending_alias_suggestion = {"spoken": raw_app, "suggested": suggestion}
                     return f"I could not find {app_name}. Did you mean {suggestion}? Say yes or no."
                 
-                # Fallback: Search the web instead
-                search_url = f"https://www.google.com/search?q={quote_plus(app_name)}"
+                # Fallback: Try to open the corresponding .com website directly
+                clean_name = raw_app.replace(" ", "")
+                # Some common mappings if the name is slightly different
+                domain_map = {
+                    "whatsapp": "web.whatsapp.com",
+                    "discord": "discord.com/app",
+                }
+                domain = domain_map.get(clean_name, f"www.{clean_name}.com")
+                search_url = f"https://{domain}"
                 webbrowser.open(search_url)
-                return f"I couldn't find the app locally, so I opened a web search for {app_name}."
+                return f"I couldn't find the app locally, so I opened {search_url} in your browser."
 
             def _deep_parallel_search(self, target_exe: str) -> Optional[str]:
                 import concurrent.futures
@@ -248,6 +239,7 @@ class AppManagementMixin:
 
             def _minimize_app(self, app_name: str) -> str:
                 try:
+                    # pyrefly: ignore [missing-import]
                     import pygetwindow as gw
                     windows = gw.getWindowsWithTitle(app_name)
                     if not windows and app_name.lower() in APP_ALIASES:

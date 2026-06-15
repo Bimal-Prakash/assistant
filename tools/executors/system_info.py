@@ -37,6 +37,7 @@ def exec_get_system_info(query: str = "time") -> str:
 
     if "brightness" in q or "screen" in q:
         try:
+            # pyrefly: ignore [missing-import]
             import screen_brightness_control as sbc
             bright = sbc.get_brightness(display=0)[0]
             return f"Current brightness: {bright}%"

@@ -49,4 +49,6 @@ def exec_search_files(query: str) -> str:
     return json.dumps({"_client_action": "search_files", "query": query.strip()})
 
 def exec_whatsapp_call(contact_name: str, call_type: str = "audio") -> str:
-    return json.dumps({"_client_action": "whatsapp_call", "contact_name": contact_name.strip(), "call_type": call_type.strip().lower()})
+    contact_name = (contact_name or "").strip()
+    call_type = (call_type or "audio").strip().lower()
+    return json.dumps({"_client_action": "whatsapp_call", "contact_name": contact_name, "call_type": call_type})

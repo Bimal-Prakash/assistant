@@ -18,44 +18,6 @@ import difflib
 from client.config import *
 from client.ui import StatusHud
 
-try:
-    import msvcrt
-except Exception:
-    msvcrt = None
-try:
-    import pyaudio
-except Exception:
-    pyaudio = None
-try:
-    import pyautogui
-except Exception:
-    pyautogui = None
-try:
-    import pyttsx3
-except Exception:
-    pyttsx3 = None
-try:
-    import numpy as np
-except Exception:
-    np = None
-
-if not SKIP_INTERNAL_STT_IMPORTS:
-    try:
-        from huggingface_hub import snapshot_download
-    except Exception:
-        snapshot_download = None
-    try:
-        from faster_whisper import WhisperModel
-    except Exception:
-        WhisperModel = None
-    try:
-        from vosk import Model, KaldiRecognizer, SetLogLevel
-        import pvrecorder
-    except Exception:
-        Model = KaldiRecognizer = SetLogLevel = pvrecorder = None
-else:
-    snapshot_download = WhisperModel = Model = KaldiRecognizer = SetLogLevel = pvrecorder = None
-
 class ActionExecutionMixin:
                 def _sanitize_text(self, text: str) -> str:
                     if not text:
@@ -186,7 +148,7 @@ class ActionExecutionMixin:
                         result = method(**kwargs)
                         if result and not self._is_quiet_success_message(result):
                             self.speak(result)
-                        return
+                        return result
 
                     if action_name == "type_text":
                         message = str(action.get("response") or action.get("text") or "Okay")

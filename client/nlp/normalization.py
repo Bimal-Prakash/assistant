@@ -16,27 +16,6 @@ import difflib
 
 from client.config import *
 
-try:
-    import msvcrt
-except Exception:
-    msvcrt = None
-try:
-    import pyaudio
-except Exception:
-    pyaudio = None
-try:
-    import pyautogui
-except Exception:
-    pyautogui = None
-try:
-    import pyttsx3
-except Exception:
-    pyttsx3 = None
-try:
-    import numpy as np
-except Exception:
-    np = None
-
 class NormalizationMixin:
             def _normalize_text_command(self, text: str) -> str:
                 return re.sub(r"\s+", " ", (text or "").strip().lower())

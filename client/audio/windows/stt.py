@@ -16,43 +16,7 @@ import difflib
 
 from client.config import *
 
-try:
-    import msvcrt
-except Exception:
-    msvcrt = None
-try:
-    import pyaudio
-except Exception:
-    pyaudio = None
-try:
-    import pyautogui
-except Exception:
-    pyautogui = None
-try:
-    import pyttsx3
-except Exception:
-    pyttsx3 = None
-try:
-    import numpy as np
-except Exception:
-    np = None
-
-if not SKIP_INTERNAL_STT_IMPORTS:
-    try:
-        from huggingface_hub import snapshot_download
-    except Exception:
-        snapshot_download = None
-    try:
-        from faster_whisper import WhisperModel
-    except Exception:
-        WhisperModel = None
-    try:
-        from vosk import Model, KaldiRecognizer, SetLogLevel
-        import pvrecorder
-    except Exception:
-        Model = KaldiRecognizer = SetLogLevel = pvrecorder = None
-else:
-    snapshot_download = WhisperModel = Model = KaldiRecognizer = SetLogLevel = pvrecorder = None
+snapshot_download = WhisperModel = Model = KaldiRecognizer = SetLogLevel = pvrecorder = None
 
 class WindowsSTTMixin:
             def _listen_with_windows_speech(self) -> Optional[str]:

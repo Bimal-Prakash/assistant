@@ -4,21 +4,25 @@ import time
 from typing import Optional, Dict, Any
 
 try:
+    # pyrefly: ignore [missing-import]
     import pygetwindow as gw
 except ImportError:
     gw = None
 
 try:
+    # pyrefly: ignore [missing-import]
     import pyperclip
 except ImportError:
     pyperclip = None
 
 try:
+    # pyrefly: ignore [missing-import]
     import pyautogui
 except ImportError:
     pyautogui = None
 
 try:
+    # pyrefly: ignore [missing-import]
     import psutil
 except ImportError:
     psutil = None
@@ -77,7 +81,7 @@ class AgenticControlMixin:
 
     def _snap_window(self, app_name: str, direction: str) -> str:
         self._focus_app(app_name)
-        time.sleep(0.5)
+        time.sleep(0.2)
         if pyautogui:
             if direction == 'left':
                 pyautogui.hotkey('win', 'left')
@@ -94,9 +98,18 @@ class AgenticControlMixin:
         if pyperclip:
             text = pyperclip.paste()
             if text:
-                return f"Clipboard contains: {text}"
-            return "Clipboard is empty"
-        return "Clipboard access not available"
+                return f"Clipboard contains text: {text}"
+                
+        try:
+            # pyrefly: ignore [missing-import]
+            from PIL import ImageGrab
+            img = ImageGrab.grabclipboard()
+            if img is not None:
+                return "Clipboard contains an image."
+        except Exception:
+            pass
+            
+        return "Clipboard is empty or contains unsupported data."
 
     def _write_clipboard(self, text: str) -> str:
         if pyperclip:
@@ -113,7 +126,7 @@ class AgenticControlMixin:
 
     def _check_performance(self) -> str:
         if psutil:
-            cpu = psutil.cpu_percent(interval=1)
+            cpu = psutil.cpu_percent(interval=0.1)
             ram = psutil.virtual_memory().percent
             disk = psutil.disk_usage('/').percent
             return f"CPU: {cpu}%, RAM: {ram}%, Disk: {disk}%"
@@ -129,6 +142,7 @@ class AgenticControlMixin:
 
     def _empty_recycle_bin(self) -> str:
         try:
+            # pyrefly: ignore [missing-import]
             import winshell
             winshell.recycle_bin().empty(confirm=False, show_progress=False, sound=False)
             return "Emptied recycle bin"
@@ -137,29 +151,29 @@ class AgenticControlMixin:
 
     def _take_screenshot(self) -> str:
         if pyautogui:
-            desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+            user_dir = os.path.expanduser("~")
+            desktop = os.path.join(user_dir, "Desktop")
+            onedrive_desktop = os.path.join(user_dir, "OneDrive", "Desktop")
+            if os.path.exists(onedrive_desktop):
+                desktop = onedrive_desktop
+            
+            os.makedirs(desktop, exist_ok=True)
             filename = os.path.join(desktop, f"screenshot_{int(time.time())}.png")
             pyautogui.screenshot(filename)
             return f"Screenshot saved to desktop"
         return "Screenshot tool not available"
 
     def _show_notification(self, title: str, message: str) -> str:
-        try:
-            from win10toast import ToastNotifier
-            toaster = ToastNotifier()
-            toaster.show_toast(title, message, duration=5, threaded=True)
-            return f"Showing notification: {title}"
-        except ImportError:
-            # Fallback to powershell
-            ps_script = f"""
-            [reflection.assembly]::loadwithpartialname("System.Windows.Forms")
-            $notify = new-object system.windows.forms.notifyicon
-            $notify.icon = [system.drawing.systemicons]::information
-            $notify.visible = $true
-            $notify.showballoontip(10,"{title}","{message}",[system.windows.forms.tooltipicon]::None)
-            """
-            subprocess.run(["powershell", "-Command", ps_script], check=False)
-            return f"Showing notification: {title}"
+        # Using PowerShell fallback directly to avoid win10toast dependency issues
+        ps_script = f"""
+        [reflection.assembly]::loadwithpartialname("System.Windows.Forms")
+        $notify = new-object system.windows.forms.notifyicon
+        $notify.icon = [system.drawing.systemicons]::information
+        $notify.visible = $true
+        $notify.showballoontip(10,"{title}","{message}",[system.windows.forms.tooltipicon]::None)
+        """
+        subprocess.run(["powershell", "-Command", ps_script], check=False)
+        return f"Showing notification: {title}"
 
     def _set_timer(self, seconds: int, label: str) -> str:
         def timer_thread():
@@ -200,109 +214,72 @@ class AgenticControlMixin:
         if not pyautogui:
             return "UI automation not available"
 
+        # Try to find a phonetic match in contacts.json to fix STT typos (e.g. Pawan -> Pavan)
+        import json, difflib
+        contacts_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "core", "contacts.json")
+        start_t = float(os.environ.get("COMMAND_START_TIME", str(time.time())))
+        
+        try:
+            if os.path.exists(contacts_file):
+                with open(contacts_file, "r", encoding="utf-8") as f:
+                    contacts_data = json.load(f)
+                contact_names = []
+                if isinstance(contacts_data, dict):
+                    contact_names = list(contacts_data.keys())
+                elif isinstance(contacts_data, list):
+                    contact_names = contacts_data
+                    
+                if contact_names:
+                    matches = difflib.get_close_matches(contact_name, contact_names, n=1, cutoff=0.6)
+                    if matches and matches[0].lower() != contact_name.lower():
+                        print(f"\n[WhatsApp] Phonetic correction applied: '{contact_name}' -> '{matches[0]}'")
+                        contact_name = matches[0]
+        except Exception:
+            pass
+
         # Force the assistant to idle instantly so it doesn't accidentally listen while calling
         if hasattr(self, "wake_active_until"):
             self.wake_active_until = 0.0
         
-        # Open whatsapp using existing method
+        # Open and aggressively focus whatsapp immediately
         self._open_app("whatsapp")
-        time.sleep(1) # Short wait before prompting
-
-        print(f"\n[WhatsApp] Going to call '{contact_name}'. If this is wrong, type the correct name now (you have 5 seconds) and press Enter. (Type 'cancel' to abort):")
-        corrected_name = ""
-        start_time = time.time()
-        canceled = False
-        try:
-            import msvcrt
-            while time.time() - start_time < 5.0:
-                if hasattr(self, "_check_abort") and self._check_abort():
-                    canceled = True
-                    print("\n[WhatsApp] Call aborted by voice command.")
-                    break
-                if msvcrt.kbhit():
-                    c = msvcrt.getwch()
-                    if c in ('\r', '\n'):
-                        print()
-                        if corrected_name.strip().lower() in ("cancel", "abort", "stop"):
-                            canceled = True
-                        break
-                    elif c == '\b':
-                        if corrected_name:
-                            corrected_name = corrected_name[:-1]
-                            print("\b \b", end="", flush=True)
-                    else:
-                        corrected_name += c
-                        print(c, end="", flush=True)
-                else:
-                    time.sleep(0.05)
-        except Exception:
-            for _ in range(100):
-                if hasattr(self, "_check_abort") and self._check_abort():
-                    canceled = True
-                    print("\n[WhatsApp] Call aborted by voice command.")
-                    break
-                time.sleep(0.05)
-            
-        if canceled:
-            return "Call canceled by user."
-
-        if corrected_name.strip():
-            contact_name = corrected_name.strip()
-            print(f"\n[WhatsApp] Using corrected name: '{contact_name}'")
-        else:
-            print(f"\n[WhatsApp] Proceeding with: '{contact_name}'")
-
-        # Wait remaining time to ensure WhatsApp is fully loaded
-        time.sleep(2)
-        
-        # Aggressively focus WhatsApp to prevent typing in the IDE
+        time.sleep(0.3)
         self._focus_app("whatsapp")
-        time.sleep(1.0)
+        time.sleep(0.2)
         
-        # Ensure we are out of any specific chat context
-        pyautogui.press('esc')
-        time.sleep(0.5)
-
-        # Search for contact
-        pyautogui.hotkey('ctrl', 'f')
-        time.sleep(0.5)
-        # Clear existing search text
-        pyautogui.hotkey('ctrl', 'a')
+        print(f"\n[WhatsApp] Proceeding with: '{contact_name}'")
+        print(f"[Benchmark] WhatsApp focused: {time.time() - start_t:.2f}s")
+        
+        # Maximize + switch to Chats tab + open New Chat in rapid succession
+        pyautogui.hotkey('win', 'up')
+        time.sleep(0.15)
+        pyautogui.hotkey('ctrl', '1')
         time.sleep(0.2)
-        pyautogui.press('backspace')
-        time.sleep(0.2)
-        pyautogui.typewrite(contact_name, interval=0.05)
-        time.sleep(2.0) # Wait for search results
+        pyautogui.hotkey('ctrl', 'n')
+        time.sleep(0.3)
+        
+        # Type the contact name into the New Chat search box
+        pyautogui.typewrite(contact_name, interval=0.01)
+        time.sleep(0.4)
+        
+        # Select the first contact result
         pyautogui.press('down')
-        time.sleep(0.5)
+        time.sleep(0.1)
         pyautogui.press('enter')
-        # Wait for the chat to fully open
-        time.sleep(2.0)
         
-        # Maximize window to ensure stable coordinates for fallback clicking
-        try:
-            import pygetwindow as gw
-            windows = gw.getWindowsWithTitle("WhatsApp")
-            if windows:
-                if not windows[0].isMaximized:
-                    windows[0].maximize()
-                    time.sleep(1.0)
-        except Exception:
-            pass
+        # Wait for the chat to open
+        time.sleep(0.3)
         
-        # Removed the 'esc' press here because in modern WhatsApp, Esc closes the chat!
+        print(f"[Benchmark] Contact opened: {time.time() - start_t:.2f}s")
         
         # Click call button using correct shortcuts with robust key presses and fallbacks
         if call_type == 'video':
-            # UWP
             pyautogui.hotkey('ctrl', 'shift', 'v')
-            time.sleep(0.5)
-            # Legacy/Web
+            time.sleep(0.3)
             pyautogui.hotkey('alt', 'shift', 'v')
             
-            # Fallback 1: Image Recognition (if user provided 'video_call_btn.png')
+            # Fallback: Image Recognition
             try:
-                import os
                 btn_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "video_call_btn.png")
                 if os.path.exists(btn_path):
                     button_location = pyautogui.locateOnScreen(btn_path, confidence=0.8)
@@ -312,25 +289,24 @@ class AgenticControlMixin:
             except Exception:
                 pass
                 
-            # Fallback 2: Coordinate click (Video call button is approx right - 200, top + 55)
+            # Fallback: Coordinate click
             try:
+                windows = gw.getWindowsWithTitle("WhatsApp")
                 if windows:
                     w = windows[0]
                     pyautogui.click(x=w.right - 200, y=w.top + 55)
             except Exception:
                 pass
                 
+            print(f"[Benchmark] Call started: {time.time() - start_t:.2f}s")
             return f"Initiating video call with {contact_name}"
         else:
-            # UWP Audio call is ctrl+shift+a
             pyautogui.hotkey('ctrl', 'shift', 'a')
-            time.sleep(0.5)
-            # Legacy/Web
+            time.sleep(0.3)
             pyautogui.hotkey('alt', 'shift', 'a')
             
-            # Fallback 1: Image Recognition (if user provided 'audio_call_btn.png')
+            # Fallback: Image Recognition
             try:
-                import os
                 btn_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "audio_call_btn.png")
                 if os.path.exists(btn_path):
                     button_location = pyautogui.locateOnScreen(btn_path, confidence=0.8)
@@ -340,12 +316,14 @@ class AgenticControlMixin:
             except Exception:
                 pass
             
-            # Fallback 2: Coordinate click (Audio call button is approx right - 250, top + 55)
+            # Fallback: Coordinate click
             try:
+                windows = gw.getWindowsWithTitle("WhatsApp")
                 if windows:
                     w = windows[0]
                     pyautogui.click(x=w.right - 250, y=w.top + 55)
             except Exception:
                 pass
                 
+            print(f"[Benchmark] Call started: {time.time() - start_t:.2f}s")
             return f"Initiating audio call with {contact_name}"

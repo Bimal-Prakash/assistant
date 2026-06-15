@@ -41,11 +41,11 @@ WAKE_WORDS = [
 ]
 
 # External MCP Servers to boot on startup
-# Format: {"server_name": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "C:\\"]}}
+# Format: {"server_name": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "<base_dir>"]}}
 MCP_SERVERS = {
     "filesystem": {
         "command": "npx.cmd",
-        "args": ["-y", "@modelcontextprotocol/server-filesystem", "C:\\Bimal\\Project\\assistant"]
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", str(BASE_DIR.parent)]
     }
 }
 

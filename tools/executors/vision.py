@@ -7,9 +7,10 @@ from core.config import OLLAMA_API_URL
 
 logger = logging.getLogger("jarvis.tools.vision")
 
-def exec_analyze_screen(query: str) -> str:
+def exec_analyze_screen(query: str = "Describe what is on the screen in detail.") -> str:
     """Takes a screenshot and asks the Moondream vision model to analyze it."""
     try:
+        # pyrefly: ignore [missing-import]
         from PIL import ImageGrab
     except ImportError:
         return "Error: Pillow is not installed. Cannot take screenshot."

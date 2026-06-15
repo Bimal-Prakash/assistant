@@ -17,48 +17,20 @@ import difflib
 from client.config import *
 
 try:
-    import msvcrt
-except Exception:
-    msvcrt = None
-try:
     import winsound
 except Exception:
     winsound = None
 try:
-    import pyaudio
-except Exception:
-    pyaudio = None
-try:
-    import pyautogui
-except Exception:
-    pyautogui = None
-try:
+    # pyrefly: ignore [missing-import]
     import pyttsx3
 except Exception:
     pyttsx3 = None
-try:
-    import numpy as np
-except Exception:
-    np = None
 
-if not SKIP_INTERNAL_STT_IMPORTS:
-    try:
-        from huggingface_hub import snapshot_download
-    except Exception:
-        snapshot_download = None
-    try:
-        from faster_whisper import WhisperModel
-    except Exception:
-        WhisperModel = None
-    try:
-        from vosk import Model, KaldiRecognizer, SetLogLevel
-        import pvrecorder
-    except Exception:
-        Model = KaldiRecognizer = SetLogLevel = pvrecorder = None
-else:
-    snapshot_download = WhisperModel = Model = KaldiRecognizer = SetLogLevel = pvrecorder = None
+snapshot_download = WhisperModel = Model = KaldiRecognizer = SetLogLevel = pvrecorder = None
 
 class TTSMixin:
+        _tts_lock = threading.Lock()
+
         def _init_tts_engine(self) -> None:
             # Default offline-first mode. Use edge only if explicitly requested.
             preferred = os.getenv("JARVIS_TTS_ENGINE", "pyttsx3").strip().lower()
@@ -110,20 +82,25 @@ class TTSMixin:
                 except Exception:
                     pass
 
+        def _speak_blocking(self, text: str) -> None:
+            """Actual TTS playback — runs in background thread."""
+            with self._tts_lock:
+                if self.tts_mode == "edge":
+                    if self._speak_with_edge_tts(text):
+                        return
+
+                if self.tts_mode == "pyttsx3" and self.tts:
+                    try:
+                        self.tts.say(text)
+                        self.tts.runAndWait()
+                    except Exception:
+                        pass
+
         def speak(self, text: str) -> None:
             if not text:
                 return
             print(f"Jarvis: {text}")
             self._update_hud(action=text)
-    
-            if self.tts_mode == "edge":
-                if self._speak_with_edge_tts(text):
-                    return
-    
-            if self.tts_mode == "pyttsx3" and self.tts:
-                try:
-                    self.tts.say(text)
-                    self.tts.runAndWait()
-                except Exception:
-                    pass
+            # Fire-and-forget: TTS runs in background so actions start immediately
+            threading.Thread(target=self._speak_blocking, args=(text,), daemon=True).start()
 

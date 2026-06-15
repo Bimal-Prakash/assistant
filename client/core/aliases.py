@@ -17,43 +17,7 @@ import difflib
 from client.config import *
 from client.ui import StatusHud
 
-try:
-    import msvcrt
-except Exception:
-    msvcrt = None
-try:
-    import pyaudio
-except Exception:
-    pyaudio = None
-try:
-    import pyautogui
-except Exception:
-    pyautogui = None
-try:
-    import pyttsx3
-except Exception:
-    pyttsx3 = None
-try:
-    import numpy as np
-except Exception:
-    np = None
-
-if not SKIP_INTERNAL_STT_IMPORTS:
-    try:
-        from huggingface_hub import snapshot_download
-    except Exception:
-        snapshot_download = None
-    try:
-        from faster_whisper import WhisperModel
-    except Exception:
-        WhisperModel = None
-    try:
-        from vosk import Model, KaldiRecognizer, SetLogLevel
-        import pvrecorder
-    except Exception:
-        Model = KaldiRecognizer = SetLogLevel = pvrecorder = None
-else:
-    snapshot_download = WhisperModel = Model = KaldiRecognizer = SetLogLevel = pvrecorder = None
+snapshot_download = WhisperModel = Model = KaldiRecognizer = SetLogLevel = pvrecorder = None
 
 class AliasesMixin:
             def _load_dynamic_aliases(self) -> Dict[str, str]:

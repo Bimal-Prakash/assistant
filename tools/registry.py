@@ -82,6 +82,11 @@ class ToolRegistry:
         tool = self._tools.get(name)
         if tool is None:
             return f"Error: tool '{name}' does not exist."
+        if "required" in tool.parameters:
+            missing = [req for req in tool.parameters["required"] if req not in args]
+            if missing:
+                return f"Error: Missing required arguments: {', '.join(missing)}. Do NOT retry this tool blindly. If you lack the required info, use final_answer to ask the user!"
+                
         try:
             return tool.executor(**args)
         except Exception as exc:
@@ -98,20 +103,20 @@ def build_default_registry() -> ToolRegistry:
 
     registry.register(Tool(
         name="get_system_info",
-        description="Get system information like current time, date, battery level, volume, or screen brightness.",
+        description="Get time, date, battery, volume, or brightness.",
         parameters={"properties": {
             "query": {"type": "string", "description": "What to get: 'time', 'date', 'battery', 'volume', 'brightness', or 'all'"},
-        }},
+        }, "required": ["query"]},
         executor=exec_get_system_info,
     ))
 
     registry.register(Tool(
         name="open_app",
-        description="Open an application on the PC. Use 'text' for search queries (e.g., song name for Spotify). Do NOT use this to call people, use whatsapp_call instead.",
+        description="Open an application or website. ALWAYS use this to 'open' an app OR 'play' a specific song/video.",
         parameters={"properties": {
             "app": {"type": "string", "description": "App name (e.g., 'spotify', 'chrome', 'whatsapp')"},
             "text": {"type": "string", "description": "Optional text to search/type after opening the app"},
-        }},
+        }, "required": ["app"]},
         executor=exec_open_app,
     ))
 
@@ -120,7 +125,7 @@ def build_default_registry() -> ToolRegistry:
         description="Close a running application.",
         parameters={"properties": {
             "app": {"type": "string", "description": "App name to close"},
-        }},
+        }, "required": ["app"]},
         executor=exec_close_app,
     ))
 
@@ -129,7 +134,7 @@ def build_default_registry() -> ToolRegistry:
         description="Minimize a running application window.",
         parameters={"properties": {
             "app": {"type": "string", "description": "App name to minimize"},
-        }},
+        }, "required": ["app"]},
         executor=exec_minimize_app,
     ))
 
@@ -138,16 +143,16 @@ def build_default_registry() -> ToolRegistry:
         description="Open a URL in the default browser.",
         parameters={"properties": {
             "url": {"type": "string", "description": "Full URL to open"},
-        }},
+        }, "required": ["url"]},
         executor=exec_open_website,
     ))
 
     registry.register(Tool(
         name="search_web",
-        description="Search the internet and return top results. Use for questions you don't know the answer to.",
+        description="Search the internet, returns top results. Does NOT save files.",
         parameters={"properties": {
             "query": {"type": "string", "description": "Search query"},
-        }},
+        }, "required": ["query"]},
         executor=exec_search_web,
     ))
 
@@ -156,16 +161,16 @@ def build_default_registry() -> ToolRegistry:
         description="Execute a PowerShell command. Dangerous commands require user confirmation.",
         parameters={"properties": {
             "command": {"type": "string", "description": "PowerShell command to execute"},
-        }},
+        }, "required": ["command"]},
         executor=exec_run_terminal,
     ))
 
     registry.register(Tool(
         name="ask_chatgpt",
-        description="Visually opens ChatGPT in your browser, types the question, and reads the answer off the screen using the vision model. Use this if you are stuck or need help from a smarter AI.",
+        description="Opens ChatGPT in browser, types query, reads answer via vision. Use when stuck on complex tasks.",
         parameters={"properties": {
             "query": {"type": "string", "description": "The exact question or prompt to type into ChatGPT"}
-        }},
+        }, "required": ["query"]},
         executor=exec_ask_chatgpt_visually,
     ))
 
@@ -174,7 +179,7 @@ def build_default_registry() -> ToolRegistry:
         description="Control the PC volume.",
         parameters={"properties": {
             "level": {"type": "string", "description": "'up', 'down', 'mute', 'max', or a percentage like '50'"},
-        }},
+        }, "required": ["level"]},
         executor=exec_volume_control,
     ))
 
@@ -183,7 +188,7 @@ def build_default_registry() -> ToolRegistry:
         description="Control the screen brightness.",
         parameters={"properties": {
             "level": {"type": "string", "description": "'up', 'down', 'max', 'min', or a percentage like '50'"},
-        }},
+        }, "required": ["level"]},
         executor=exec_brightness_control,
     ))
 
@@ -192,16 +197,16 @@ def build_default_registry() -> ToolRegistry:
         description="Shutdown, restart, or sleep the PC. Shutdown/restart require confirmation.",
         parameters={"properties": {
             "type": {"type": "string", "description": "'shutdown', 'restart', or 'sleep'"},
-        }},
+        }, "required": ["type"]},
         executor=exec_power_control,
     ))
 
     registry.register(Tool(
         name="media_control",
-        description="GLOBAL media playback control (play, pause, next, previous). Use this tool IMMEDIATELY for any play/pause/stop/next music commands. It works globally for Spotify, YouTube, etc. DO NOT use analyze_screen or open_app first.",
+        description="Global play/pause/next/previous for any active media player.",
         parameters={"properties": {
             "state": {"type": "string", "description": "'play_pause', 'next', or 'previous'"},
-        }},
+        }, "required": ["state"]},
         executor=exec_media_control,
     ))
 
@@ -211,7 +216,7 @@ def build_default_registry() -> ToolRegistry:
         parameters={"properties": {
             "type": {"type": "string", "description": "'wifi' or 'bluetooth'"},
             "state": {"type": "string", "description": "'on', 'off', or 'open'"},
-        }},
+        }, "required": ["type", "state"]},
         executor=exec_network_control,
     ))
 
@@ -220,7 +225,7 @@ def build_default_registry() -> ToolRegistry:
         description="Mute or unmute the microphone.",
         parameters={"properties": {
             "state": {"type": "string", "description": "'mute' or 'unmute'"},
-        }},
+        }, "required": ["state"]},
         executor=exec_mic_control,
     ))
 
@@ -230,7 +235,7 @@ def build_default_registry() -> ToolRegistry:
         parameters={"properties": {
             "phone": {"type": "string", "description": "Phone number with country code"},
             "message": {"type": "string", "description": "Message text to send"},
-        }},
+        }, "required": ["phone", "message"]},
         executor=exec_send_whatsapp,
     ))
 
@@ -242,7 +247,7 @@ def build_default_registry() -> ToolRegistry:
         parameters={"properties": {
             "key": {"type": "string", "description": "What to remember (e.g., 'name', 'favorite_color')"},
             "value": {"type": "string", "description": "The value to remember"},
-        }},
+        }, "required": ["key", "value"]},
         executor=exec_remember_fact,
     ))
 
@@ -251,7 +256,7 @@ def build_default_registry() -> ToolRegistry:
         description="Recall a previously remembered fact about the user.",
         parameters={"properties": {
             "key": {"type": "string", "description": "What to recall (e.g., 'name')"},
-        }},
+        }, "required": ["key"]},
         executor=exec_recall_fact,
     ))
 
@@ -267,33 +272,33 @@ def build_default_registry() -> ToolRegistry:
         description="Give your final spoken response to the user. Use when you have the answer or completed the task.",
         parameters={"properties": {
             "text": {"type": "string", "description": "What to say to the user"},
-        }},
+        }, "required": ["text"]},
         executor=exec_final_answer,
     ))
 
-    registry.register(Tool(name="maximize_app", description="Maximize a specific application window.", parameters={"properties": {"app": {"type": "string", "description": "App name"}}}, executor=exec_maximize_app))
-    registry.register(Tool(name="restore_app", description="Restore a specific application window to normal size.", parameters={"properties": {"app": {"type": "string", "description": "App name"}}}, executor=exec_restore_app))
-    registry.register(Tool(name="focus_app", description="Bring an application to the foreground.", parameters={"properties": {"app": {"type": "string", "description": "App name"}}}, executor=exec_focus_app))
+    registry.register(Tool(name="maximize_app", description="Maximize a specific application window.", parameters={"properties": {"app": {"type": "string", "description": "App name"}}, "required": ["app"]}, executor=exec_maximize_app))
+    registry.register(Tool(name="restore_app", description="Restore a specific application window to normal size.", parameters={"properties": {"app": {"type": "string", "description": "App name"}}, "required": ["app"]}, executor=exec_restore_app))
+    # Removed focus_app entirely because the 3B model confuses it with open_app. open_app handles focusing on Windows anyway.
     registry.register(Tool(name="hide_all_windows", description="Minimize all windows to show the desktop.", parameters={"properties": {}}, executor=exec_hide_all_windows))
-    registry.register(Tool(name="snap_window", description="Snap active window to a side of the screen.", parameters={"properties": {"app": {"type": "string", "description": "App name"}, "direction": {"type": "string", "description": "'left', 'right', 'top', 'bottom'"}}}, executor=exec_snap_window))
-    registry.register(Tool(name="read_clipboard", description="Read the current contents of the system clipboard.", parameters={"properties": {}}, executor=exec_read_clipboard))
-    registry.register(Tool(name="write_clipboard", description="Write text to the system clipboard.", parameters={"properties": {"text": {"type": "string", "description": "Text to write"}}}, executor=exec_write_clipboard))
-    registry.register(Tool(name="press_shortcut", description="Press a keyboard shortcut.", parameters={"properties": {"shortcut": {"type": "string", "description": "Keyboard shortcut like 'ctrl+c'"}}}, executor=exec_press_shortcut))
+    registry.register(Tool(name="snap_window", description="Snap active window to a side of the screen.", parameters={"properties": {"app": {"type": "string", "description": "App name"}, "direction": {"type": "string", "description": "'left', 'right', 'top', 'bottom'"}}, "required": ["app", "direction"]}, executor=exec_snap_window))
+    registry.register(Tool(name="read_clipboard", description="Read clipboard contents (text or image).", parameters={"properties": {}}, executor=exec_read_clipboard))
+    registry.register(Tool(name="write_clipboard", description="Write text to the system clipboard.", parameters={"properties": {"text": {"type": "string", "description": "Text to write"}}, "required": ["text"]}, executor=exec_write_clipboard))
+    registry.register(Tool(name="press_shortcut", description="Press a keyboard shortcut or media key. Use this for play/pause/next/previous.", parameters={"properties": {"shortcut": {"type": "string", "description": "Shortcut (e.g. 'ctrl+c') or media key ('playpause', 'nexttrack', 'prevtrack')"}}, "required": ["shortcut"]}, executor=exec_press_shortcut))
     registry.register(Tool(name="check_performance", description="Check system CPU, RAM, and Disk usage.", parameters={"properties": {}}, executor=exec_check_performance))
     registry.register(Tool(name="lock_pc", description="Lock the Windows workstation.", parameters={"properties": {}}, executor=exec_lock_pc))
     registry.register(Tool(name="empty_recycle_bin", description="Empty the Windows recycle bin.", parameters={"properties": {}}, executor=exec_empty_recycle_bin))
-    registry.register(Tool(name="take_screenshot", description="Take a screenshot of the current screen and save it to desktop.", parameters={"properties": {}}, executor=exec_take_screenshot))
-    registry.register(Tool(name="show_notification", description="Show a native Windows toast notification.", parameters={"properties": {"title": {"type": "string", "description": "Notification title"}, "message": {"type": "string", "description": "Notification message"}}}, executor=exec_show_notification))
-    registry.register(Tool(name="set_timer", description="Set a countdown timer in seconds.", parameters={"properties": {"seconds": {"type": "integer", "description": "Seconds to wait"}, "label": {"type": "string", "description": "Timer label"}}}, executor=exec_set_timer))
-    registry.register(Tool(name="open_folder", description="Open a specific folder in Windows Explorer.", parameters={"properties": {"folder_path": {"type": "string", "description": "Path to the folder, or 'downloads', 'documents', etc."}}}, executor=exec_open_folder))
-    registry.register(Tool(name="search_files", description="Search the file system for a specific file by name.", parameters={"properties": {"query": {"type": "string", "description": "File name to search for"}}}, executor=exec_search_files))
+    registry.register(Tool(name="take_screenshot", description="Save a screenshot to desktop. DO NOT use this to look at or read the screen. Use analyze_screen instead.", parameters={"properties": {}}, executor=exec_take_screenshot))
+    registry.register(Tool(name="show_notification", description="Show a native Windows toast notification.", parameters={"properties": {"title": {"type": "string", "description": "Notification title"}, "message": {"type": "string", "description": "Notification message"}}, "required": ["title", "message"]}, executor=exec_show_notification))
+    registry.register(Tool(name="set_timer", description="Set a countdown timer in seconds.", parameters={"properties": {"seconds": {"type": "integer", "description": "Seconds to wait"}, "label": {"type": "string", "description": "Timer label"}}, "required": ["seconds", "label"]}, executor=exec_set_timer))
+    registry.register(Tool(name="open_folder", description="Open a specific folder in Windows Explorer.", parameters={"properties": {"folder_path": {"type": "string", "description": "Path to the folder, or 'downloads', 'documents', etc."}}, "required": ["folder_path"]}, executor=exec_open_folder))
+    registry.register(Tool(name="search_files", description="Search the file system for a specific file by name.", parameters={"properties": {"query": {"type": "string", "description": "File name to search for"}}, "required": ["query"]}, executor=exec_search_files))
     registry.register(Tool(
         name="whatsapp_call",
-        description="Initiate an audio or video call on WhatsApp. Use this tool IMMEDIATELY when the user asks to call someone, do not ask for more information first.",
+        description="Call someone on WhatsApp. Use IMMEDIATELY when user says 'call X'.",
         parameters={
             "properties": {
-                "contact_name": {"type": "string", "description": "The exact, full name of the contact as spoken by the user. Do not truncate, split, or remove numbers/suffixes (e.g., if user says 'adithyaponnu26', extract 'adithyaponnu26')."},
-                "call_type": {"type": "string", "description": "'audio' or 'video'. Default to 'audio' unless the user explicitly says 'video call' or 'video'."}
+                "contact_name": {"type": "string", "description": "Contact name exactly as spoken."},
+                "call_type": {"type": "string", "description": "'audio' (default) or 'video'."}
             },
             "required": ["contact_name"]
         },

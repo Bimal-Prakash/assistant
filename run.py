@@ -9,6 +9,7 @@ import uuid
 from typing import Optional
 
 import requests
+# pyrefly: ignore [missing-import]
 import uvicorn
 
 # This launcher listens through the microphone and delegates command
@@ -34,6 +35,7 @@ os.environ.setdefault("JARVIS_HUD", "0")
 os.environ.setdefault("JARVIS_SPOKEN_FILLER", "0")
 
 try:
+    # pyrefly: ignore [missing-import]
     import speech_recognition as sr
 except ImportError:  # pragma: no cover
     sr = None
@@ -172,6 +174,27 @@ def run_assistant(start_server: bool, text_mode: bool, energy_threshold: Optiona
     if not wait_for_backend(BACKEND_URL):
         raise RuntimeError(f"Backend did not become ready at {BACKEND_URL}")
 
+    def prewarm_ollama():
+        try:
+            import requests
+            from core.config import OLLAMA_API_URL, OLLAMA_MODEL
+            logging.info(f"Pre-warming Ollama model {OLLAMA_MODEL} into VRAM...")
+            requests.post(
+                OLLAMA_API_URL, 
+                json={
+                    "model": OLLAMA_MODEL, 
+                    "prompt": "hello", 
+                    "stream": False, 
+                    "keep_alive": "10m"
+                }, 
+                timeout=120
+            )
+            logging.info("Ollama model pre-warmed successfully. First command will be instant!")
+        except Exception as e:
+            logging.warning(f"Ollama pre-warm failed: {e}")
+            
+    threading.Thread(target=prewarm_ollama, daemon=True).start()
+
     client = LaptopJarvisClient(BACKEND_URL, hud_enabled=False)
     client.speak("Assistant is ready")
 
@@ -200,6 +223,24 @@ def run_assistant(start_server: bool, text_mode: bool, energy_threshold: Optiona
                 command = input("Assistant > ").strip()
             else:
                 command = commands.get()
+                
+            # Benchmark telemetry
+            import os, time
+            os.environ["COMMAND_START_TIME"] = str(time.time())
+            print(f"\n[Benchmark] Voice recognized: 0.00s")
+
+            # Apply dynamic STT corrections from environment variables
+            # Format in .env: JARVIS_STT_CORRECTIONS="vimal:bimal,pawan:pavan"
+            stt_corrections_env = os.getenv("JARVIS_STT_CORRECTIONS", "")
+            if stt_corrections_env:
+                command_lower = command.lower()
+                for pair in stt_corrections_env.split(','):
+                    parts = pair.split(':')
+                    if len(parts) == 2:
+                        wrong, right = parts[0].strip(), parts[1].strip()
+                        if wrong.lower() in command_lower:
+                            command = command.replace(wrong.capitalize(), right.capitalize())
+                            command = command.replace(wrong.lower(), right.lower())
 
             normalized = client._normalize_text_command(command)
             if normalized in QUIT_COMMANDS:
@@ -228,20 +269,30 @@ def run_assistant(start_server: bool, text_mode: bool, energy_threshold: Optiona
                 continue
 
             try:
-                action = client._resolve_action_for_command(command)
-                client.execute_pc_action(action)
+                try:
+                    action = client._resolve_action_for_command(command)
+                except KeyboardInterrupt:
+                    log.warning("Action resolution interrupted by user (Ctrl+C).")
+                    client.speak("Action canceled.")
+                    active = False
+                    continue
+                    
+                result = client.execute_pc_action(action)
                 
                 if action.get("action") == "whatsapp_call":
-                    log.info("WhatsApp call initiated. Pausing STT to prevent background transcribing.")
-                    client.speak("Muting assistant microphone. Press Enter in the terminal to wake me up.")
-                    pause_event.set()
-                    input("\n>>> ON A CALL. Press Enter here to wake up Jarvis... <<<\n")
-                    pause_event.clear()
-                    client.speak("Microphone resumed.")
-                    log.info("Resumed microphone STT.")
-                    # Drain any residual commands from before the pause
-                    while not commands.empty():
-                        commands.get_nowait()
+                    if result and "canceled" in result.lower():
+                        log.info("WhatsApp call was canceled.")
+                    else:
+                        log.info("WhatsApp call initiated. Pausing STT to prevent background transcribing.")
+                        client.speak("Muting assistant microphone. Press Enter in the terminal to wake me up.")
+                        pause_event.set()
+                        input("\n>>> ON A CALL. Press Enter here to wake up Jarvis... <<<\n")
+                        pause_event.clear()
+                        client.speak("Microphone resumed.")
+                        log.info("Resumed microphone STT.")
+                        # Drain any residual commands from before the pause
+                        while not commands.empty():
+                            commands.get_nowait()
                         
             except Exception as exc:
                 log.exception("Command failed")

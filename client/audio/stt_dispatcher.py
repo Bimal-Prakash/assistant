@@ -20,19 +20,6 @@ try:
     import msvcrt
 except Exception:
     msvcrt = None
-try:
-    import pyaudio
-except Exception:
-    pyaudio = None
-try:
-    import pyautogui
-except Exception:
-    pyautogui = None
-try:
-    # pyrefly: ignore [missing-import]
-    import pyttsx3
-except Exception:
-    pyttsx3 = None
 
 
 class STTDispatcherMixin:

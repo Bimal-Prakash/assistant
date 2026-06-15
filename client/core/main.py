@@ -18,22 +18,12 @@ from client.config import *
 from client.ui import StatusHud
 
 try:
-    import msvcrt
-except Exception:
-    msvcrt = None
-try:
-    import pyaudio
-except Exception:
-    pyaudio = None
-try:
-    import pyautogui
-except Exception:
-    pyautogui = None
-try:
+    # pyrefly: ignore [missing-import]
     import pyttsx3
 except Exception:
     pyttsx3 = None
 try:
+    # pyrefly: ignore [missing-import]
     import numpy as np
 except Exception:
     np = None
@@ -82,12 +72,10 @@ class MainLoopMixin:
                 self._active_mic_device_index: Optional[int] = None
                 self._consecutive_empty_captures = 0
                 self.stt_engine = STT_ENGINE
-                if self.stt_engine == "assemblyai" and not ASSEMBLYAI_API_KEY:
-                    print("Warning: ASSEMBLYAI_API_KEY is missing; falling back to Whisper/Vosk STT.")
-                    self.stt_engine = "whisper"
-                if self.stt_engine not in {"whisper", "vosk", "assemblyai", "windows"}:
-                    print(f"Warning: Unknown STT engine '{self.stt_engine}', falling back to whisper.")
-                    self.stt_engine = "whisper"
+
+                if self.stt_engine not in {"windows"}:
+                    print(f"Warning: Unknown STT engine '{self.stt_engine}', forcing 'windows' text mode.")
+                    self.stt_engine = "windows"
                 if self.stt_engine == "windows":
                     self.input_mode = "text"
                     self.windows_native_text_mode = True
@@ -98,6 +86,34 @@ class MainLoopMixin:
                 self._stt_profile_cache: Dict[str, Dict[str, Any]] = {}
                 self._load_stt_calibration_profile()
                 self._apply_stt_calibration_profile()
+
+                self.command_queue = queue.Queue()
+                self._worker_thread = threading.Thread(target=self._command_worker_loop, daemon=True)
+                self._worker_thread.start()
+
+            def _command_worker_loop(self) -> None:
+                while True:
+                    cmd_raw, conf = self.command_queue.get()
+                    if cmd_raw is None:
+                        break
+                    try:
+                        action = self._resolve_action_for_command(cmd_raw)
+                        if not TERMINAL_MINIMAL:
+                            print(f"\n[Worker] Action JSON: {json.dumps(action, indent=2)}\nWindows speech > ", end="", flush=True)
+                        self._update_hud(intent=action.get("action", ""), action=str(action))
+
+                        if self._should_gate_low_confidence(action):
+                            self.pending_action_confirmation = {"action": action, "heard": cmd_raw, "confidence": conf}
+                            self.speak(
+                                f"Low confidence {conf:.2f} for '{cmd_raw}'. Say yes to confirm or no to cancel."
+                            )
+                            continue
+
+                        self.execute_pc_action(action)
+                    except Exception as exc:
+                        self.speak(f"Backend error: {exc}")
+                    finally:
+                        self.command_queue.task_done()
 
             def run(self) -> None:
                 print(f"Laptop Jarvis started. Backend: {self.backend_url}")
@@ -139,6 +155,12 @@ class MainLoopMixin:
                                 self.speak("Stopping Jarvis")
                                 break
         
+                            if normalized in {"cancel", "abort", "nevermind", "ignore"}:
+                                with self.command_queue.mutex:
+                                    self.command_queue.queue.clear()
+                                self.speak("Cancelled pending actions.")
+                                continue
+        
                             if self.input_mode == "text" and normalized in VOICE_MODE_COMMANDS:
                                 if self.windows_native_text_mode:
                                     self.speak("Windows speech mode is active. Staying in text mode.")
@@ -162,23 +184,8 @@ class MainLoopMixin:
         
                             self._update_hud(heard=raw, intent="command")
         
-                            try:
-                                action = self._resolve_action_for_command(raw)
-                                if not TERMINAL_MINIMAL:
-                                    print("Action JSON:", json.dumps(action, indent=2))
-                                self._update_hud(intent=action.get("action", ""), action=str(action))
-        
-                                if self._should_gate_low_confidence(action):
-                                    conf = self.last_recognition_confidence
-                                    self.pending_action_confirmation = {"action": action, "heard": raw, "confidence": conf}
-                                    self.speak(
-                                        f"Low confidence {conf:.2f}. Say yes to confirm or no to cancel."
-                                    )
-                                    continue
-        
-                                self.execute_pc_action(action)
-                            except Exception as exc:
-                                self.speak(f"Backend error: {exc}")
+                            # Queue the command for the background worker instead of blocking or naive threading
+                            self.command_queue.put((raw, self.last_recognition_confidence))
                         except KeyboardInterrupt:
                             raise
                 except KeyboardInterrupt:
