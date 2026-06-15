@@ -1,6 +1,6 @@
 # Windows Agent (Jarvis)
 
-Jarvis is an ultra-fast, local, autonomous AI Agent for Windows 10/11. Built specifically for systems with limited VRAM (e.g. 4GB), it uses native Windows text-to-speech and `qwen2.5:1.5b` via Ollama for multi-step agentic workflows.
+Jarvis is an ultra-fast, local, autonomous AI Agent for Windows 10/11. Built specifically for systems with limited VRAM (e.g. 4GB), it uses native Windows text-to-speech and `qwen2.5:2.5b` via Ollama for multi-step agentic workflows.
 
 ## Demo Video
 
