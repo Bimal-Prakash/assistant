@@ -115,6 +115,20 @@ class ResolverMixin:
                 "app": app_to_open
             }
 
+        # Close App Fast Path
+        if cmd_lower.startswith("close "):
+            app_to_close = command[6:].strip()
+            print(f"[Benchmark] Intent detected (Fast Path Bypass): {time.time() - start_t:.2f}s")
+            return {
+                "action": "close_app",
+                "app": app_to_close
+            }
+
+        # Minimize App Fast Path
+        if cmd_lower.startswith("minimize ") or cmd_lower.startswith("minimise "):
+            print(f"[Benchmark] Intent detected (Fast Path Bypass): {time.time() - start_t:.2f}s")
+            return {"action": "press_shortcut", "shortcut": "win+d"}
+
         # Play Song Fast Path
         import re
         play_match = re.match(r"(?i)^(?:can you )?play\s+(.*?)\s+(?:on|in)\s+([a-zA-Z0-9]+)$", cmd_lower)

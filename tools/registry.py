@@ -122,7 +122,7 @@ def build_default_registry() -> ToolRegistry:
 
     registry.register(Tool(
         name="close_app",
-        description="Close a running application.",
+        description="MANDATORY tool to close, kill, or quit a running application. You MUST use this tool to close apps.",
         parameters={"properties": {
             "app": {"type": "string", "description": "App name to close"},
         }, "required": ["app"]},
@@ -131,7 +131,7 @@ def build_default_registry() -> ToolRegistry:
 
     registry.register(Tool(
         name="minimize_app",
-        description="Minimize a running application window.",
+        description="MANDATORY tool to minimize or hide a running application window. You MUST use this tool to minimize apps.",
         parameters={"properties": {
             "app": {"type": "string", "description": "App name to minimize"},
         }, "required": ["app"]},
@@ -283,7 +283,7 @@ def build_default_registry() -> ToolRegistry:
     registry.register(Tool(name="snap_window", description="Snap active window to a side of the screen.", parameters={"properties": {"app": {"type": "string", "description": "App name"}, "direction": {"type": "string", "description": "'left', 'right', 'top', 'bottom'"}}, "required": ["app", "direction"]}, executor=exec_snap_window))
     registry.register(Tool(name="read_clipboard", description="Read clipboard contents (text or image).", parameters={"properties": {}}, executor=exec_read_clipboard))
     registry.register(Tool(name="write_clipboard", description="Write text to the system clipboard.", parameters={"properties": {"text": {"type": "string", "description": "Text to write"}}, "required": ["text"]}, executor=exec_write_clipboard))
-    registry.register(Tool(name="press_shortcut", description="Press a keyboard shortcut or media key. Use this for play/pause/next/previous.", parameters={"properties": {"shortcut": {"type": "string", "description": "Shortcut (e.g. 'ctrl+c') or media key ('playpause', 'nexttrack', 'prevtrack')"}}, "required": ["shortcut"]}, executor=exec_press_shortcut))
+    registry.register(Tool(name="press_shortcut", description="Press a keyboard shortcut or media key for playback.", parameters={"properties": {"shortcut": {"type": "string", "description": "Shortcut or media key ('playpause', 'nexttrack', 'prevtrack')"}}, "required": ["shortcut"]}, executor=exec_press_shortcut))
     registry.register(Tool(name="check_performance", description="Check system CPU, RAM, and Disk usage.", parameters={"properties": {}}, executor=exec_check_performance))
     registry.register(Tool(name="lock_pc", description="Lock the Windows workstation.", parameters={"properties": {}}, executor=exec_lock_pc))
     registry.register(Tool(name="empty_recycle_bin", description="Empty the Windows recycle bin.", parameters={"properties": {}}, executor=exec_empty_recycle_bin))
