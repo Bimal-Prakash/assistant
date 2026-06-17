@@ -27,10 +27,11 @@ from tools.executors import (
     exec_read_clipboard, exec_write_clipboard, exec_press_shortcut,
     exec_check_performance, exec_lock_pc, exec_empty_recycle_bin, exec_take_screenshot,
     exec_show_notification, exec_set_timer, exec_open_folder, exec_search_files,
-    exec_analyze_screen, exec_ask_chatgpt_visually
+    exec_analyze_screen, exec_ask_chatgpt_visually,
+    exec_analyze_ui, exec_click_ui_element, exec_type_ui_element
 )
 from tools.executors.file_system import exec_list_directory, exec_read_file, exec_write_file
-from tools.executors.obsidian import exec_search_obsidian, exec_read_obsidian_note
+from tools.executors.obsidian import exec_search_obsidian, exec_read_obsidian_note, exec_semantic_search_obsidian
 
 logger = logging.getLogger("jarvis.tools.registry")
 
@@ -115,8 +116,8 @@ def build_default_registry() -> ToolRegistry:
         description="Open an application or website. ALWAYS use this to 'open' an app OR 'play' a specific song/video.",
         parameters={"properties": {
             "app": {"type": "string", "description": "App name (e.g., 'spotify', 'chrome', 'whatsapp')"},
-            "text": {"type": "string", "description": "Optional text to search/type after opening the app"},
-        }, "required": ["app"]},
+            "text": {"type": "string", "description": "Text to search or type. If none, pass empty string ''"},
+        }, "required": ["app", "text"]},
         executor=exec_open_app,
     ))
 
@@ -167,12 +168,39 @@ def build_default_registry() -> ToolRegistry:
 
     registry.register(Tool(
         name="ask_chatgpt",
-        description="Opens ChatGPT in browser, types query, reads answer via vision. Use when stuck on complex tasks.",
+        description="Opens ChatGPT in browser, types query, reads answer via clipboard. Use when stuck on complex tasks.",
         parameters={"properties": {
             "query": {"type": "string", "description": "The exact question or prompt to type into ChatGPT"}
         }, "required": ["query"]},
         executor=exec_ask_chatgpt_visually,
     ))
+
+    registry.register(Tool(
+        name="analyze_ui",
+        description="Reads the active window's UI DOM tree and returns a list of interactive elements (buttons, inputs, etc). Use this FIRST before clicking or typing to find the exact element names.",
+        parameters={"properties": {}},
+        executor=exec_analyze_ui,
+    ))
+
+    registry.register(Tool(
+        name="click_ui_element",
+        description="Finds a UI element by exact name or ID in the active window and clicks it. Use analyze_ui first to find the exact name.",
+        parameters={"properties": {
+            "element_name": {"type": "string", "description": "The exact Name or AutomationId of the element to click"}
+        }, "required": ["element_name"]},
+        executor=exec_click_ui_element,
+    ))
+
+    registry.register(Tool(
+        name="type_ui_element",
+        description="Finds an input field by exact name or ID, focuses it, and types text. Use analyze_ui first to find the exact name.",
+        parameters={"properties": {
+            "element_name": {"type": "string", "description": "The exact Name or AutomationId of the input field"},
+            "text": {"type": "string", "description": "The text to type"}
+        }, "required": ["element_name", "text"]},
+        executor=exec_type_ui_element,
+    ))
+
 
     registry.register(Tool(
         name="volume_control",
@@ -241,31 +269,32 @@ def build_default_registry() -> ToolRegistry:
 
 
 
-    registry.register(Tool(
-        name="remember_fact",
-        description="Remember a piece of information about the user for later recall.",
-        parameters={"properties": {
-            "key": {"type": "string", "description": "What to remember (e.g., 'name', 'favorite_color')"},
-            "value": {"type": "string", "description": "The value to remember"},
-        }, "required": ["key", "value"]},
-        executor=exec_remember_fact,
-    ))
+    # The following tools are deprecated in favor of the Generalized Obsidian Pipeline
+    # registry.register(Tool(
+    #     name="remember_fact",
+    #     description="Remember a piece of information about the user for later recall.",
+    #     parameters={"properties": {
+    #         "key": {"type": "string", "description": "What to remember (e.g., 'name', 'favorite_color')"},
+    #         "value": {"type": "string", "description": "The value to remember"},
+    #     }, "required": ["key", "value"]},
+    #     executor=exec_remember_fact,
+    # ))
 
-    registry.register(Tool(
-        name="recall_fact",
-        description="Recall a previously remembered fact about the user.",
-        parameters={"properties": {
-            "key": {"type": "string", "description": "What to recall (e.g., 'name')"},
-        }, "required": ["key"]},
-        executor=exec_recall_fact,
-    ))
+    # registry.register(Tool(
+    #     name="recall_fact",
+    #     description="Recall a previously remembered fact about the user.",
+    #     parameters={"properties": {
+    #         "key": {"type": "string", "description": "What to recall (e.g., 'name')"},
+    #     }, "required": ["key"]},
+    #     executor=exec_recall_fact,
+    # ))
 
-    registry.register(Tool(
-        name="recall_last_command",
-        description="Recall what the user's last command was.",
-        parameters={"properties": {}},
-        executor=exec_recall_last_command,
-    ))
+    # registry.register(Tool(
+    #     name="recall_last_command",
+    #     description="Recall what the user's last command was.",
+    #     parameters={"properties": {}},
+    #     executor=exec_recall_last_command,
+    # ))
 
     registry.register(Tool(
         name="final_answer",
@@ -350,6 +379,15 @@ def build_default_registry() -> ToolRegistry:
             "query": {"type": "string", "description": "The word or phrase to search for in notes"}
         }, "required": ["query"]},
         executor=exec_search_obsidian,
+    ))
+
+    registry.register(Tool(
+        name="semantic_search_obsidian",
+        description="Search all markdown files in the user's Obsidian vault using AI vector search. Use this for conceptual queries (e.g. 'what hobby was I talking about', 'who did I meet in London'). It finds meaning, not just exact words.",
+        parameters={"properties": {
+            "query": {"type": "string", "description": "The concept or meaning to search for"}
+        }, "required": ["query"]},
+        executor=exec_semantic_search_obsidian,
     ))
 
     registry.register(Tool(

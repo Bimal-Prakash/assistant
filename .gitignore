@@ -1,6 +1,49 @@
-jarvis_memory.sqlite3
-.env
-contacts.json
+# Python / Compiled files
 __pycache__/
-*.pyc
-.venv/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Project Specific (Databases, Memory, Keys)
+jarvis_memory.sqlite3
+*.sqlite3
+chroma_db/
+chroma_db_router/
+contacts.json
+
+# Logs & Screenshots
+*.log
+logs/
+@AutomationLog.txt
+screenshot_*.png
+
+# Downloaded Models (if any)
+models/
+*.bin
+*.gguf
+*.pt
+*.pth
+*.onnx
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Miscellaneous
+.cache/
+.pytest_cache/

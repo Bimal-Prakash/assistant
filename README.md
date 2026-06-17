@@ -17,8 +17,11 @@ https://youtu.be/pfRlhW-oROw
 - **Desktop Utilities**: Take screenshots, open shortcut folders, read/write to the clipboard, set timers, and empty the recycle bin via voice commands.
 - **Unified Launcher**: Easily start the backend server and desktop client together using the streamlined `run.py` entry point.
 - **Model Context Protocol (MCP)**: Now supports MCP integrations.
-- **Autonomous Agent**: Uses Ollama with `qwen2.5:1.5b` (default) for intelligent intent routing, file system management, and multi-step tool execution.
-- **Memory System**: Remembers user facts and interaction history via a local SQLite database.
+- **Semantic Routing (Zero Latency)**: Uses a local ChromaDB vector database to instantly intercept and execute common commands (Play Media, Close App) in ~0.2s without invoking the LLM.
+- **Natural Language Parsing (NLP)**: Uses `spaCy` to grammatically extract entities (like app names) from commands instead of brittle Regex.
+- **Zero-Latency UI Vision**: A Singleton background daemon continuously parses the Windows UI tree, allowing the agent to "see" your active window instantaneously without blocking execution.
+- **RAG Memory System (Obsidian)**: Seamlessly integrates with your local Obsidian Markdown vault via Vector Search, giving the agent a "long-term memory" of your personal notes.
+- **Autonomous Agent**: Uses Ollama with `qwen2.5:3b` (default) for intelligent intent routing, file system management, and multi-step tool execution.
 
 ## Requirements
 

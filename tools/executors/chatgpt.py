@@ -8,12 +8,10 @@ try:
 except ImportError:
     pyautogui = None
 
-from tools.executors.vision import exec_analyze_screen
-
 logger = logging.getLogger("jarvis.tools.chatgpt")
 
 def exec_ask_chatgpt_visually(query: str) -> str:
-    """Visually opens ChatGPT in the browser, types the query, and uses the vision model to read the response."""
+    """Visually opens ChatGPT in the browser, types the query, and copies the response text."""
     if pyautogui is None:
         return "Error: pyautogui is not installed. Cannot physically interact with the browser."
         
@@ -45,23 +43,21 @@ def exec_ask_chatgpt_visually(query: str) -> str:
             
         if not opened_existing:
             webbrowser.open("https://chatgpt.com/")
-            time.sleep(4) # Wait for new page to load
+            time.sleep(6) # Wait for new page to fully load
         
         # 3. Type the query directly into the active input box
-        pyautogui.typewrite(query, interval=0.02)
-        time.sleep(0.5)
+        # Using a 0.08 second interval between keys looks very human (~150 WPM)
+        pyautogui.typewrite(query, interval=0.08)
+        time.sleep(1.0)
         
         # 4. Hit enter to submit
         pyautogui.press("enter")
         
         # 5. Wait for ChatGPT to finish generating the response.
-        time.sleep(8)
+        # This gives time for the UI to update and the text to stream in.
+        time.sleep(12)
         
-        # 6. Zoom in so the vision model can read the text easily
-        # Browsers use Ctrl + '=' or Ctrl + '+' to zoom in, Ctrl + '0' to reset
-        for _ in range(2):
-            pyautogui.hotkey('ctrl', '=')
-            time.sleep(0.1)
+        # (Removed physical browser zoom; we now crop the image computationally)
             
         # 7. Move mouse to the center of the screen and scroll down forcefully
         # This ensures the chat container actually scrolls to the bottom
@@ -71,19 +67,35 @@ def exec_ask_chatgpt_visually(query: str) -> str:
             pyautogui.scroll(-5000)
         except Exception:
             pass
+        time.sleep(1.0)
+        
+        # 7. Press Ctrl+A to select all, then Ctrl+C to copy
+        pyautogui.hotkey("ctrl", "a")
+        time.sleep(0.5)
+        pyautogui.hotkey("ctrl", "c")
         time.sleep(0.5)
         
-        # 7. Take a screenshot and use Moondream to read the response!
-        vision_prompt = "Read the text of the main answer provided by ChatGPT on the screen."
-        screen_content = exec_analyze_screen(query=vision_prompt)
+        # Deselect text
+        pyautogui.press("esc")
         
-        pyautogui.hotkey('ctrl', '0')
-        time.sleep(0.2)
-        
-        if "empty response" in screen_content.lower():
-            return f"I opened ChatGPT, but {screen_content} Do NOT retry this tool."
+        # 8. Read the clipboard
+        try:
+            import pyperclip
+            clipboard_content = pyperclip.paste()
+        except ImportError:
+            return "I opened ChatGPT and asked the question, but the 'pyperclip' library is missing so I cannot read the response from the clipboard."
             
-        return f"I opened ChatGPT, asked the question, and read its response. ChatGPT says:\n\n{screen_content}"
+        if not clipboard_content or len(clipboard_content.strip()) < 10:
+            return "I opened ChatGPT, but I couldn't copy the response text. Do NOT retry this tool."
+            
+        # 9. Extract the actual response (Basic parsing)
+        # ChatGPT's web UI text usually ends with the last thing it generated.
+        # We'll just return the last 2000 characters of the clipboard to capture the response.
+        text = clipboard_content.strip()
+        if len(text) > 2000:
+            text = "... " + text[-2000:]
+            
+        return f"I opened ChatGPT, asked the question, and read the response. ChatGPT says:\n\n{text}"
         
     except Exception as e:
         logger.exception("Failed during visual ChatGPT interaction")

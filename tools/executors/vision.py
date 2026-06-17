@@ -7,11 +7,11 @@ from core.config import OLLAMA_API_URL
 
 logger = logging.getLogger("jarvis.tools.vision")
 
-def exec_analyze_screen(query: str = "Describe what is on the screen in detail.") -> str:
+def exec_analyze_screen(query: str = "Describe what is on the screen in detail.", crop_center: bool = False) -> str:
     """Takes a screenshot and asks the Moondream vision model to analyze it."""
     try:
         # pyrefly: ignore [missing-import]
-        from PIL import ImageGrab
+        from PIL import ImageGrab, Image
     except ImportError:
         return "Error: Pillow is not installed. Cannot take screenshot."
 
@@ -19,9 +19,20 @@ def exec_analyze_screen(query: str = "Describe what is on the screen in detail."
         # 1. Take a screenshot
         screenshot = ImageGrab.grab()
         
-        # 2. Convert to base64 JPEG to send to Ollama
+        # 2. Optionally crop the center (e.g. for ChatGPT responses)
+        if crop_center:
+            width, height = screenshot.size
+            left = int(width * 0.15)
+            right = int(width * 0.85)
+            top = int(height * 0.10)
+            bottom = int(height * 0.95)
+            screenshot = screenshot.crop((left, top, right, bottom))
+            # Resize it back up so Moondream gets high resolution of the cropped area
+            screenshot = screenshot.resize((width, height), Image.Resampling.LANCZOS)
+        
+        # 3. Convert to base64 JPEG to send to Ollama
         buffered = io.BytesIO()
-        screenshot.save(buffered, format="JPEG", quality=80)
+        screenshot.save(buffered, format="JPEG", quality=90)
         img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
         
         # 3. Ask Moondream

@@ -51,10 +51,28 @@ class SpotifyMixin:
                 except Exception:
                     pass
 
+            _last_played_random_item = None
+
             def _spotify_search_and_play(self, query: str) -> None:
                 if pyautogui is None:
                     print("[Spotify] sorry not available")
                     return
+
+                # If query contains multiple items separated by 'and' or ',', pick one randomly
+                if " and " in query.lower() or "," in query:
+                    import random
+                    import re
+                    parts = re.split(r'\s+and\s+|,\s*', query, flags=re.IGNORECASE)
+                    parts = [p.strip() for p in parts if p.strip()]
+                    if parts:
+                        # If we have played one of these recently, try to pick a different one
+                        available_parts = [p for p in parts if p != self.__class__._last_played_random_item]
+                        if not available_parts:
+                            available_parts = parts  # fallback if all were played or something went wrong
+                        
+                        query = random.choice(available_parts)
+                        self.__class__._last_played_random_item = query
+                        print(f"[Spotify] Randomly selected: {query}")
         
                 try:
                     search_uri = f"spotify:search:{quote_plus(query)}"

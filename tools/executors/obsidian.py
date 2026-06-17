@@ -105,3 +105,54 @@ def exec_read_obsidian_note(note_name: str) -> str:
     except Exception as e:
         logger.exception(f"Failed to read note {matched_file}")
         return f"Error reading the note: {e}"
+
+def exec_semantic_search_obsidian(query: str) -> str:
+    """
+    Search the Obsidian vault using semantic vector search.
+    Returns the most relevant chunks of text.
+    """
+    try:
+        # pyrefly: ignore [missing-import]
+        import chromadb
+        # pyrefly: ignore [missing-import]
+        from chromadb.utils.embedding_functions import OllamaEmbeddingFunction
+    except ImportError:
+        return "Error: chromadb is not installed."
+        
+    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "chroma_db")
+    if not os.path.exists(db_path):
+        return "Error: Vector database not found. Please run scripts/index_obsidian.py first."
+        
+    try:
+        client = chromadb.PersistentClient(path=db_path)
+        from core.config import OLLAMA_API_URL
+        base_url = OLLAMA_API_URL.replace("/api/generate", "")
+        ef = OllamaEmbeddingFunction(
+            model_name="nomic-embed-text",
+            url=f"{base_url}/api/embeddings"
+        )
+        
+        collection = client.get_collection(name="obsidian_notes", embedding_function=ef)
+        
+        results = collection.query(
+            query_texts=[query],
+            n_results=3
+        )
+        
+        if not results["documents"] or not results["documents"][0]:
+            return f"No semantic matches found for '{query}'."
+            
+        output = [f"Semantic Search Results for '{query}':\n"]
+        
+        for i, doc in enumerate(results["documents"][0]):
+            metadata = results["metadatas"][0][i]
+            filename = metadata.get("filename", "Unknown file")
+            output.append(f"--- From {filename} ---")
+            output.append(doc)
+            output.append("")
+            
+        return "\n".join(output)
+        
+    except Exception as e:
+        logger.exception("Failed semantic search")
+        return f"Error during semantic search: {e}"

@@ -65,42 +65,7 @@ def _extract_json(raw_text: str) -> Dict[str, Any]:
 # ------------------------------------------------------------------
 # System prompt builder
 # ------------------------------------------------------------------
-SYSTEM_PROMPT = """You are {assistant_name}, a fast Windows AI assistant created by {creator_name}. You use `{model}` via Ollama and `{vision_model}` for vision.
-
-## Core Loop
-Thought -> pick ONE tool -> observe result -> repeat or use `final_answer` to respond.
-
-## Critical Rules
-1. You are {assistant_name}. NEVER claim to be ChatGPT/Claude/OpenAI. Introduce yourself via `final_answer`.
-2. NEVER invent tool arguments. Use tools exactly as defined. If info is missing, use `final_answer` to ask the user.
-3. Do NOT repeat a failed tool call with identical arguments.
-4. On "stop"/"cancel"/"shut up", immediately `final_answer` to acknowledge.
-5. After a successful action, ALWAYS `final_answer` to confirm completion.
-6. If a tool returns "CONFIRMATION_REQUIRED", relay it via `final_answer`.
-7. EXTREMELY IMPORTANT: If the user asks to close an app, use the `close_app` tool.
-8. EXTREMELY IMPORTANT: If the user asks to minimize an app, use the `minimize_app` tool.
-
-## Tool Selection Guide
-- **Play specific song**: `open_app` with app="spotify" (or youtube), text="song name". NEVER use `open_folder`.
-- **Play/pause/next/prev**: `press_shortcut` with 'playpause'/'nexttrack'/'prevtrack'.
-- **Open ANY app/site**: ALWAYS use `open_app` with exact name. Do NOT use `focus_app` for opening apps.
-- **Close an app**: Use `close_app` with app="name".
-- **Minimize an app**: Use `minimize_app` with app="name".
-- **WiFi/Bluetooth**: `network_control`.
-- **Call someone**: `whatsapp_call` with contact_name. NEVER use this just to OPEN WhatsApp (use `open_app` for that).
-- **Read screen/errors**: `analyze_screen`.
-- **Complex/stuck**: `ask_chatgpt` (sends query to ChatGPT, NOT the user).
-- **Incomplete Command (e.g. just "open", "play", "call")**: ALWAYS use `final_answer` to ask the user (e.g., "Open what?"). Do NOT guess or use random tools.
-- **Identity questions**: `read_obsidian_note` with note_name="JARVIS.md".
-- **Files**: `list_directory`, `read_file`, `write_file`.
-- **General knowledge**: `final_answer` directly, or `search_web` if unsure.
-
-## Output
-Return exactly ONE raw JSON object: {{"thought": "...", "tool": "tool_name", "tool_args": {{...}}}}
-
-## Tools
-{tools}
-"""
+from core.prompts import SYSTEM_PROMPT
 
 USER_STATE_TEMPLATE = """## Conversation History
 {history}
@@ -109,7 +74,9 @@ USER_STATE_TEMPLATE = """## Conversation History
 {user_command}
 
 ## Execution Log (this turn)
-{execution_log}"""
+{execution_log}
+
+CRITICAL: Read the Conversation History! If the conversation history ALREADY contains the context or answer you need (e.g. a previously mentioned artist, name, or fact), you MUST use it directly. DO NOT search for it again. If the Execution Log contains the observation you need, use `final_answer` to respond. DO NOT repeat the exact same tool call!"""
 
 
 def _build_prompt(
@@ -243,8 +210,8 @@ class OllamaCommandModel:
             "keep_alive": self.keep_alive_seconds,
             "options": {
                 "temperature": 0,
-                "num_ctx": 1536,
-                "num_predict": 256,
+                "num_ctx": 4096,
+                "num_predict": 512,
                 "num_batch": 256,
             },
         }
@@ -320,7 +287,15 @@ class OllamaCommandModel:
             call_sig = json.dumps({"tool": tool_name, "args": tool_args}, sort_keys=True)
             if call_sig in previous_calls:
                 logger.warning("Agent repeated same tool call. Breaking loop to prevent infinite loop.")
-                err_msg = "I'm sorry, I got stuck in a loop trying to execute that tool with the wrong arguments. Could you break down the task for me?"
+                if tool_name == "semantic_search_obsidian":
+                    err_msg = "I searched my local notes but I couldn't find an answer for that."
+                elif tool_name == "ask_chatgpt":
+                    err_msg = "I tried asking ChatGPT, but I couldn't get a clear answer."
+                elif tool_name == "analyze_ui":
+                    err_msg = "I looked at the screen but I couldn't find the button or element you were referring to."
+                else:
+                    err_msg = "I tried to execute that action, but it didn't work as expected. Could you rephrase?"
+                
                 self.conversations.add_turn(session_id, "assistant", err_msg)
                 return self._make_speak_action(err_msg, default_target)
             previous_calls.add(call_sig)
@@ -372,7 +347,7 @@ class OllamaCommandModel:
 
             # --- INSTANT KILL SWITCH & FATAL ABORT ---
             obs_lower = observation.lower()
-            if "fail-safe triggered" in obs_lower or "do not retry this tool" in obs_lower:
+            if "fail-safe triggered" in obs_lower:
                 abort_msg = "Task aborted! The kill switch or fail-safe was triggered."
                 self.conversations.add_turn(session_id, "assistant", abort_msg)
                 return self._make_speak_action(abort_msg, default_target)
@@ -391,9 +366,9 @@ class OllamaCommandModel:
                     "_pending_args": tool_args,
                 }
 
-            if tool_name in ["volume_control", "brightness_control", "media_control", "network_control", "mic_control", "power_control", "run_terminal", "remember_fact", "recall_fact"]:
+            if tool_name in ["volume_control", "brightness_control", "media_control", "network_control", "mic_control", "power_control"]:
                 if not observation.startswith("Error executing"):
-                    # Force immediate exit for action tools to prevent small LLMs from infinite looping
+                    # Force immediate exit for basic hardware actions to prevent small LLMs from infinite looping
                     self.conversations.add_turn(session_id, "assistant", observation)
                     return self._make_speak_action(observation, default_target)
 

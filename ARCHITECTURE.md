@@ -37,8 +37,13 @@ The project relies entirely on open-source and native Python integrations:
 - **pycaw & comtypes**: Hooks into Windows Core Audio APIs to control and read exact volume levels.
 - **Spotipy**: Connects to Spotify APIs for media playback and management.
 
-### Data Storage
+### Data Storage & RAG Memory
 - **SQLite3**: A local database (`jarvis_memory.sqlite3`) for persistent memory, allowing the agent to remember user facts and interaction history without sending data to the cloud.
+- **ChromaDB**: Used for both Semantic Intent Routing (caching voice commands) and Retrieval-Augmented Generation (RAG) by vectorizing personal Obsidian Markdown notes.
+
+### NLP & UI Automation
+- **spaCy**: Used for Natural Language Parsing (`en_core_web_sm`) to cleanly extract application names and entities from user speech.
+- **UICacheManager**: A Singleton background daemon thread that constantly polls the active window DOM tree using `uiautomation`, dropping UI latency to 0.0s.
 
 ## 3. The Execution Workflow (A to Z)
 
@@ -46,9 +51,12 @@ Here is exactly what happens when you say a command:
 
 1. **Wake Word & Capture**: The microphone continuously listens. Using energy thresholds and silence detection, it captures a spoken phrase.
 2. **Speech-to-Text (STT)**: The `client/audio/stt_dispatcher.py` transcribes the audio using the configured engine (Windows native by default).
-3. **Local Action Evaluation**: The client checks if the command is a simple PC control (e.g., *"mute volume"*, *"increase brightness"*, *"snap this window"*).
-   - If **Yes**: It executes the action immediately using Windows APIs (`pycaw`, system hotkeys) without ever contacting the LLM. This provides zero-latency system control.
-   - If **No**: The raw text command is packaged and sent via an HTTP POST request to the FastAPI backend (`http://127.0.0.1:8000`).
+3. **Local Action Evaluation & Semantic Routing**: 
+   - The client uses a **Semantic Router Bypass** (ChromaDB) to evaluate if the command is a simple, predictable action (e.g., *"mute volume"*, *"snap this window"*, *"close this"*).
+   - The router uses `spaCy` NLP to parse exact entities from the text.
+   - If the intent requires context (like *"close this"*), the router instantly queries the background `UICacheManager` to determine the active window.
+   - If a fast path is matched, it executes immediately using Windows APIs without ever contacting the LLM (zero-latency).
+   - If no fast path is matched, the raw text command is packaged and sent via an HTTP POST request to the FastAPI backend (`http://127.0.0.1:8000`).
 4. **Agent Reasoning**: The FastAPI endpoint receives the request and forwards it to `agent/llm.py`. 
 5. **Tool Selection & Memory Retrieval**: 
    - The agent reads previous context from SQLite.

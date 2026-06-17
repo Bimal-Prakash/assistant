@@ -148,6 +148,9 @@ class AppManagementMixin:
                 domain_map = {
                     "whatsapp": "web.whatsapp.com",
                     "discord": "discord.com/app",
+                    "claude": "claude.ai",
+                    "gemini": "gemini.google.com",
+                    "chatgpt": "chatgpt.com",
                 }
                 domain = domain_map.get(clean_name, f"www.{clean_name}.com")
                 search_url = f"https://{domain}"
@@ -218,6 +221,9 @@ class AppManagementMixin:
                     "vscode": ["code.exe"],
                     "notepad": ["notepad.exe"],
                     "explorer": ["explorer.exe"],
+                    "vlc": ["vlc.exe"],
+                    "vlc player": ["vlc.exe"],
+                    "vlc media player": ["vlc.exe"]
                 }
         
                 process_images = process_map.get(app)
@@ -234,6 +240,17 @@ class AppManagementMixin:
                     )
                     if result.returncode == 0:
                         return f"Closing {app_name}"
+                        
+                # Fallback: If taskkill fails, try to close it via window title (useful for 'close it' context resolution)
+                try:
+                    # pyrefly: ignore [missing-import]
+                    import pygetwindow as gw
+                    windows = gw.getWindowsWithTitle(app_name)
+                    if windows:
+                        windows[0].close()
+                        return f"Closed window: {app_name}"
+                except Exception as e:
+                    pass
         
                 return f"I could not close app {app_name} on laptop"
 
@@ -285,6 +302,13 @@ class AppManagementMixin:
         
                 if app == "spotify":
                     self._spotify_search_and_play(query)
+                    return
+
+                if app == "youtube":
+                    from urllib.parse import quote_plus
+                    search_url = f"https://www.youtube.com/results?search_query={quote_plus(query)}"
+                    import webbrowser
+                    webbrowser.open(search_url)
                     return
         
                 time.sleep(1.5)

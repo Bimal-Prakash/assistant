@@ -201,6 +201,7 @@ def run_assistant(start_server: bool, text_mode: bool, energy_threshold: Optiona
     commands: "queue.Queue[str]" = queue.Queue()
     stop_listening = None
     active = False
+    pending_clarification = None
     # Session ID tracks a conversation — resets on each wake word activation
     client.session_id = str(uuid.uuid4())
 
@@ -266,37 +267,76 @@ def run_assistant(start_server: bool, text_mode: bool, energy_threshold: Optiona
 
             if is_idle_command(normalized):
                 active = False
+                pending_clarification = None
                 continue
 
-            try:
-                try:
-                    action = client._resolve_action_for_command(command)
-                except KeyboardInterrupt:
-                    log.warning("Action resolution interrupted by user (Ctrl+C).")
-                    client.speak("Action canceled.")
-                    active = False
-                    continue
-                    
-                result = client.execute_pc_action(action)
+            # --- Conversational State Machine for Incomplete Commands ---
+            cmd_lower = command.lower().strip()
+            
+            # If we asked a clarifying question last turn, prepend the verb!
+            if pending_clarification:
+                command = f"{pending_clarification} {command}"
+                cmd_lower = command.lower().strip()
+                pending_clarification = None
                 
-                if action.get("action") == "whatsapp_call":
-                    if result and "canceled" in result.lower():
-                        log.info("WhatsApp call was canceled.")
-                    else:
-                        log.info("WhatsApp call initiated. Pausing STT to prevent background transcribing.")
-                        client.speak("Muting assistant microphone. Press Enter in the terminal to wake me up.")
-                        pause_event.set()
-                        input("\n>>> ON A CALL. Press Enter here to wake up Jarvis... <<<\n")
-                        pause_event.clear()
-                        client.speak("Microphone resumed.")
-                        log.info("Resumed microphone STT.")
-                        # Drain any residual commands from before the pause
-                        while not commands.empty():
-                            commands.get_nowait()
+            # Intercept incomplete one-word commands instantly
+            if cmd_lower in ["open", "close", "minimize", "minimise", "play", "call"]:
+                pending_clarification = cmd_lower
+                prompts = {
+                    "open": "What would you like to open?",
+                    "close": "What would you like to close?",
+                    "minimize": "What would you like to minimize?",
+                    "minimise": "What would you like to minimize?",
+                    "play": "What would you like to play?",
+                    "call": "Whom would you like to call?"
+                }
+                client.speak(prompts[cmd_lower])
+                continue
+
+            # --- Compound Command Splitter ---
+            # Allows lightning fast system commands to execute immediately
+            # while pushing the complex/agentic half to the LLM.
+            cmds_to_run = [command]
+            if cmd_lower.startswith(("open ", "close ", "minimize ", "minimise ", "play ", "call ")):
+                import re
+                match = re.split(r'\s+(?:and|then)\s+(ask|tell|introduce|search|read|write|close|open|play|pause|call|what|who|where|why|how)\b', command, maxsplit=1, flags=re.IGNORECASE)
+                if len(match) == 3:
+                    part1 = match[0].strip()
+                    part2 = (match[1] + match[2]).strip()
+                    # Prepend context to the second command so the LLM knows who "her/it" is!
+                    part2_with_context = f"[Context: The user just ran the command '{part1}'] {part2}"
+                    cmds_to_run = [part1, part2_with_context]
+
+            for single_cmd in cmds_to_run:
+                try:
+                    try:
+                        action = client._resolve_action_for_command(single_cmd)
+                    except KeyboardInterrupt:
+                        log.warning("Action resolution interrupted by user (Ctrl+C).")
+                        client.speak("Action canceled.")
+                        active = False
+                        break
                         
-            except Exception as exc:
-                log.exception("Command failed")
-                client.speak(f"Command failed: {exc}")
+                    result = client.execute_pc_action(action)
+                    
+                    if action.get("action") == "whatsapp_call":
+                        if result and "canceled" in result.lower():
+                            log.info("WhatsApp call was canceled.")
+                        else:
+                            log.info("WhatsApp call initiated. Pausing STT to prevent background transcribing.")
+                            client.speak("Muting assistant microphone. Press Enter in the terminal to wake me up.")
+                            pause_event.set()
+                            input("\n>>> ON A CALL. Press Enter here to wake up Jarvis... <<<\n")
+                            pause_event.clear()
+                            client.speak("Microphone resumed.")
+                            log.info("Resumed microphone STT.")
+                            # Drain any residual commands from before the pause
+                            while not commands.empty():
+                                commands.get_nowait()
+                            
+                except Exception as exc:
+                    log.exception("Command failed")
+                    client.speak(f"Command failed: {exc}")
     finally:
         if stop_listening is not None:
             stop_listening(wait_for_stop=False)

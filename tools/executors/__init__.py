@@ -14,6 +14,7 @@ from .memory import exec_remember_fact, exec_recall_fact, exec_recall_last_comma
 from .final_answer import exec_final_answer
 from .vision import exec_analyze_screen
 from .chatgpt import exec_ask_chatgpt_visually
+from .ui_automation import exec_analyze_ui, exec_click_ui_element, exec_type_ui_element
 
 from .agentic import (
     exec_maximize_app, exec_restore_app, exec_focus_app, exec_hide_all_windows, exec_snap_window,
@@ -49,4 +50,5 @@ __all__ = [
     "exec_read_clipboard", "exec_write_clipboard", "exec_press_shortcut",
     "exec_check_performance", "exec_lock_pc", "exec_empty_recycle_bin", "exec_take_screenshot",
     "exec_show_notification", "exec_set_timer", "exec_open_folder", "exec_search_files",
+    "exec_analyze_ui", "exec_click_ui_element", "exec_type_ui_element"
 ]
