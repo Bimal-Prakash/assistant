@@ -1,6 +1,6 @@
 # Windows Agent (Jarvis)
 
-Jarvis is an ultra-fast, Local Agentic Windows Assistant. Built specifically for systems with limited VRAM (e.g. 4GB), it uses native Windows text-to-speech and `qwen2.5:2.5b` via Ollama for multi-step agentic workflows.
+Jarvis is an ultra-fast, Local Agentic Windows Assistant. Built specifically for systems with limited VRAM (e.g. 4GB), it uses native Windows text-to-speech and `qwen2.5:3b` via Ollama for multi-step agentic workflows.
 
 ## Demo Video
 
