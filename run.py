@@ -112,6 +112,7 @@ def start_microphone_stt(command_queue: "queue.Queue[str]", energy_threshold: Op
                     command_queue.put(text)
                 return
             except sr.UnknownValueError:
+                log.info("Google STT: Unintelligible or silence.")
                 return  # It was silence or unintelligible, don't retry
             except Exception as exc:
                 if attempt == 0:
@@ -142,8 +143,9 @@ def start_microphone_stt(command_queue: "queue.Queue[str]", energy_threshold: Op
                             time.sleep(0.5)
                             continue
                         try:
-                            audio = recognizer.listen(source, timeout=1, phrase_time_limit=None)
+                            audio = recognizer.listen(source, timeout=1, phrase_time_limit=15)
                             if running[0] and not pause_event.is_set():
+                                log.info("Audio captured. Sending to Google STT...")
                                 threading.Thread(target=audio_callback, args=(recognizer, audio), daemon=True).start()
                         except sr.WaitTimeoutError:
                             pass

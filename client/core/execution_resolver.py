@@ -198,7 +198,8 @@ class ResolverMixin:
 
         # Open App Fast Path
         if cmd_lower.startswith("open "):
-            app_to_open = command[5:].split(" and ")[0].split(" then ")[0].split(" because ")[0].strip()
+            import re
+            app_to_open = re.split(r'\s+and\s+|\s+then\s+|\s+because\s+', command[5:], flags=re.IGNORECASE)[0].strip()
             print(f"[Benchmark] Intent detected (Fast Path Bypass): {time.time() - start_t:.2f}s")
             return {
                 "action": "open_app",
@@ -207,7 +208,8 @@ class ResolverMixin:
 
         # Close App Fast Path
         if cmd_lower.startswith("close ") or cmd_lower.startswith("clsoe "):
-            app_to_close = command[6:].split(" and ")[0].split(" then ")[0].split(" because ")[0].strip()
+            import re
+            app_to_close = re.split(r'\s+and\s+|\s+then\s+|\s+because\s+', command[6:], flags=re.IGNORECASE)[0].strip()
             app_to_close = _resolve_context_app_name(app_to_close)
             
             if app_to_close:
