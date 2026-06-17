@@ -44,7 +44,7 @@ https://youtu.be/pfRlhW-oROw
 2. **Install Ollama**
    - Download from https://ollama.ai
    - Install and ensure it runs as a service
-   - Pull the required model: `ollama pull qwen2.5:1.5b`
+   - Pull the required model: `ollama pull qwen2.5:1.5b` or `ollama pull qwen2.5:3b`
 
 ## Installation
 
