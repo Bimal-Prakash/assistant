@@ -1,6 +1,6 @@
 # Windows Agent (Jarvis)
 
-Jarvis is an ultra-fast, local, autonomous AI Agent for Windows 10/11. Built specifically for systems with limited VRAM (e.g. 4GB), it uses native Windows text-to-speech and `qwen2.5:2.5b` via Ollama for multi-step agentic workflows.
+Jarvis is an ultra-fast, Local Agentic Windows Assistant. Built specifically for systems with limited VRAM (e.g. 4GB), it uses native Windows text-to-speech and `qwen2.5:2.5b` via Ollama for multi-step agentic workflows.
 
 ## Demo Video
 
@@ -12,16 +12,19 @@ https://youtu.be/pfRlhW-oROw
 
 - **Unified Modular Architecture**: Cleanly separated `client`, `server`, `core`, `agent`, `models`, and `tools` directories for a robust and scalable codebase.
 - **Agentic PC Controls**: Maximize, restore, focus, snap windows, hide all windows, and manage system performance.
-- **Advanced App Integrations**: Includes powerful WhatsApp audio and video call automation with image recognition fallbacks (`audio_call_btn.png`, `video_call_btn.png`), as well as Spotify playback (`play_btn.png`) and web browsing.
+- **Advanced App Integrations**: Includes powerful WhatsApp audio and video call automation with image recognition fallbacks (`audio_call_btn.png`, `video_call_btn.png`), Spotify and YouTube playback, and lightning-fast Clipboard-based ChatGPT integration.
 - **Microphone & Streaming STT**: Uses built-in SpeechRecognition (Google STT) with intelligent silence detection, and dynamic PTT (Push-to-Talk) capabilities.
 - **Desktop Utilities**: Take screenshots, open shortcut folders, read/write to the clipboard, set timers, and empty the recycle bin via voice commands.
 - **Unified Launcher**: Easily start the backend server and desktop client together using the streamlined `run.py` entry point.
 - **Model Context Protocol (MCP)**: Now supports MCP integrations.
-- **Semantic Routing (Zero Latency)**: Uses a local ChromaDB vector database to instantly intercept and execute common commands (Play Media, Close App) in ~0.2s without invoking the LLM.
+- **Semantic Routing (Zero Latency)**: Uses a local ChromaDB vector database to instantly intercept and execute common commands (Play Media, Close App) in ~0.2s. Includes "Conversational Traps" to smartly bypass execution for chatty queries.
 - **Natural Language Parsing (NLP)**: Uses `spaCy` to grammatically extract entities (like app names) from commands instead of brittle Regex.
 - **Zero-Latency UI Vision**: A Singleton background daemon continuously parses the Windows UI tree, allowing the agent to "see" your active window instantaneously without blocking execution.
-- **RAG Memory System (Obsidian)**: Seamlessly integrates with your local Obsidian Markdown vault via Vector Search, giving the agent a "long-term memory" of your personal notes.
-- **Autonomous Agent**: Uses Ollama with `qwen2.5:3b` (default) for intelligent intent routing, file system management, and multi-step tool execution.
+- **RAG Memory System (Obsidian)**: Seamlessly integrates with your local Obsidian Markdown vault via Vector Search, giving the agent a "long-term memory" of your personal notes. Includes non-greedy alias resolution for contact names.
+- **Context-Aware Zero-Latency App Control**: Scans the Z-order window hierarchy with `pygetwindow`, intelligently ignores IDE/terminals, and precisely closes the media player or app you were just looking at when saying "close it".
+- **Deep Parallel File Search**: Dynamically parses queries (e.g., "open portfolio from downloads folder") by splitting contextual prepositions ("in", "inside", "from"). Multi-threaded workers instantly search the filesystem using prefix matching.
+- **Native Power Control**: Maps commands like "go to sleep" and "shutdown" directly to non-destructive Windows sleep or confirmed shutdown/restart APIs, actively bypassing microphone-mute conflicts.
+- **Tool-Using Agent**: Uses Ollama with `qwen2.5:3b` (default) for intelligent intent routing, file system management, identity recall, and multi-step tool execution.
 
 ## Requirements
 

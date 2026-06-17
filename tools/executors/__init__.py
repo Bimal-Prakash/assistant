@@ -21,7 +21,7 @@ from .agentic import (
     exec_read_clipboard, exec_write_clipboard, exec_press_shortcut,
     exec_check_performance, exec_lock_pc, exec_empty_recycle_bin, exec_take_screenshot,
     exec_show_notification, exec_set_timer, exec_open_folder, exec_search_files,
-    exec_whatsapp_call
+    exec_whatsapp_call, exec_open_file
 )
 
 __all__ = [
@@ -49,6 +49,6 @@ __all__ = [
     "exec_maximize_app", "exec_restore_app", "exec_focus_app", "exec_hide_all_windows", "exec_snap_window",
     "exec_read_clipboard", "exec_write_clipboard", "exec_press_shortcut",
     "exec_check_performance", "exec_lock_pc", "exec_empty_recycle_bin", "exec_take_screenshot",
-    "exec_show_notification", "exec_set_timer", "exec_open_folder", "exec_search_files",
+    "exec_show_notification", "exec_set_timer", "exec_open_folder", "exec_open_file", "exec_search_files",
     "exec_analyze_ui", "exec_click_ui_element", "exec_type_ui_element"
 ]

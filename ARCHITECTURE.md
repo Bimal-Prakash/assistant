@@ -4,7 +4,7 @@ This document provides a comprehensive A-to-Z overview of how the Jarvis Windows
 
 ## 1. Project Overview & Architecture
 
-Jarvis is a local, autonomous AI agent built specifically for Windows 10/11. It is designed to operate on consumer hardware with limited VRAM (e.g., 4GB) while offering a rich set of features including voice-to-text, PC management, system controls, and app integrations like WhatsApp and Spotify.
+Jarvis is a Local Agentic Windows Assistant built specifically for Windows 10/11. It is designed to operate on consumer hardware with limited VRAM (e.g., 4GB) while offering a rich set of features including voice-to-text, PC management, system controls, and app integrations like WhatsApp and Spotify.
 
 To ensure a robust and scalable codebase, the project uses a **Client-Server Architecture** running locally on the same machine:
 
@@ -36,13 +36,15 @@ The project relies entirely on open-source and native Python integrations:
 - **screen-brightness-control**: Adjusts monitor brightness natively.
 - **pycaw & comtypes**: Hooks into Windows Core Audio APIs to control and read exact volume levels.
 - **Spotipy**: Connects to Spotify APIs for media playback and management.
+- **Pyperclip**: Enables lightning-fast, zero-vision ChatGPT interactions by silently reading clipboard output.
 
 ### Data Storage & RAG Memory
 - **SQLite3**: A local database (`jarvis_memory.sqlite3`) for persistent memory, allowing the agent to remember user facts and interaction history without sending data to the cloud.
-- **ChromaDB**: Used for both Semantic Intent Routing (caching voice commands) and Retrieval-Augmented Generation (RAG) by vectorizing personal Obsidian Markdown notes.
+- **ChromaDB**: Used for both Semantic Intent Routing (caching voice commands) and Retrieval-Augmented Generation (RAG) by vectorizing personal Obsidian Markdown notes. Includes intelligent non-greedy regex parsing for Alias Resolution (e.g., matching contact names from `aboutme.md` text).
 
-### NLP & UI Automation
+### NLP, Context, & UI Automation
 - **spaCy**: Used for Natural Language Parsing (`en_core_web_sm`) to cleanly extract application names and entities from user speech.
+- **Deep Parallel File Search**: Contextually separates file targets from parent folders (handling prepositions like "in", "inside", "from") and utilizes multi-threaded directory traversal to instantly open files without needing an exact system path.
 - **UICacheManager**: A Singleton background daemon thread that constantly polls the active window DOM tree using `uiautomation`, dropping UI latency to 0.0s.
 
 ## 3. The Execution Workflow (A to Z)
@@ -53,8 +55,9 @@ Here is exactly what happens when you say a command:
 2. **Speech-to-Text (STT)**: The `client/audio/stt_dispatcher.py` transcribes the audio using the configured engine (Windows native by default).
 3. **Local Action Evaluation & Semantic Routing**: 
    - The client uses a **Semantic Router Bypass** (ChromaDB) to evaluate if the command is a simple, predictable action (e.g., *"mute volume"*, *"snap this window"*, *"close this"*).
+   - "Conversational Traps" protect against false positives (e.g., *"thank you jarvis now you can shutdown"*) ensuring chatty queries fall back to the LLM.
    - The router uses `spaCy` NLP to parse exact entities from the text.
-   - If the intent requires context (like *"close this"*), the router instantly queries the background `UICacheManager` to determine the active window.
+   - If the intent requires context (like *"close this"*), the router scans the Z-order window hierarchy (using `pygetwindow`) to intelligently pinpoint the exact target application—safely ignoring your code editors and terminals.
    - If a fast path is matched, it executes immediately using Windows APIs without ever contacting the LLM (zero-latency).
    - If no fast path is matched, the raw text command is packaged and sent via an HTTP POST request to the FastAPI backend (`http://127.0.0.1:8000`).
 4. **Agent Reasoning**: The FastAPI endpoint receives the request and forwards it to `agent/llm.py`. 

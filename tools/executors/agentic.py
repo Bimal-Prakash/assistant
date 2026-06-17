@@ -45,6 +45,10 @@ def exec_set_timer(seconds: int, label: str = "") -> str:
 def exec_open_folder(folder_path: str) -> str:
     return json.dumps({"_client_action": "open_folder", "folder_path": folder_path.strip()})
 
+def exec_open_file(file_name: str) -> str:
+    # Use the same open_folder backend client action since it will be upgraded to handle files
+    return json.dumps({"_client_action": "open_folder", "folder_path": file_name.strip()})
+
 def exec_search_files(query: str) -> str:
     return json.dumps({"_client_action": "search_files", "query": query.strip()})
 

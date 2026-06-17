@@ -26,7 +26,7 @@ from tools.executors import (
     exec_maximize_app, exec_restore_app, exec_focus_app, exec_hide_all_windows, exec_snap_window,
     exec_read_clipboard, exec_write_clipboard, exec_press_shortcut,
     exec_check_performance, exec_lock_pc, exec_empty_recycle_bin, exec_take_screenshot,
-    exec_show_notification, exec_set_timer, exec_open_folder, exec_search_files,
+    exec_show_notification, exec_set_timer, exec_open_folder, exec_open_file, exec_search_files,
     exec_analyze_screen, exec_ask_chatgpt_visually,
     exec_analyze_ui, exec_click_ui_element, exec_type_ui_element
 )
@@ -320,6 +320,7 @@ def build_default_registry() -> ToolRegistry:
     registry.register(Tool(name="show_notification", description="Show a native Windows toast notification.", parameters={"properties": {"title": {"type": "string", "description": "Notification title"}, "message": {"type": "string", "description": "Notification message"}}, "required": ["title", "message"]}, executor=exec_show_notification))
     registry.register(Tool(name="set_timer", description="Set a countdown timer in seconds.", parameters={"properties": {"seconds": {"type": "integer", "description": "Seconds to wait"}, "label": {"type": "string", "description": "Timer label"}}, "required": ["seconds", "label"]}, executor=exec_set_timer))
     registry.register(Tool(name="open_folder", description="Open a specific folder in Windows Explorer.", parameters={"properties": {"folder_path": {"type": "string", "description": "Path to the folder, or 'downloads', 'documents', etc."}}, "required": ["folder_path"]}, executor=exec_open_folder))
+    registry.register(Tool(name="open_file", description="Search for and open a specific file or document (PDF, docx, etc). You can optionally provide the folder it's in.", parameters={"properties": {"file_name": {"type": "string", "description": "Name of the file (e.g. 'bimalresume' or 'bimalresume in downloads')"}}, "required": ["file_name"]}, executor=exec_open_file))
     registry.register(Tool(name="search_files", description="Search the file system for a specific file by name.", parameters={"properties": {"query": {"type": "string", "description": "File name to search for"}}, "required": ["query"]}, executor=exec_search_files))
     registry.register(Tool(
         name="whatsapp_call",

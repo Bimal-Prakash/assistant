@@ -49,12 +49,7 @@ WAKE_WORDS = ("hey jarvis", "hi jarvis", "jarvis")
 IDLE_COMMANDS = {
     "stop",
     "exit",
-    "shut up",
-    "shutup",
     "go idle",
-    "go to sleep",
-    "sleep",
-    "stop listening",
 }
 QUIT_COMMANDS = {"quit assistant", "close assistant", "shutdown assistant"}
 
@@ -99,7 +94,7 @@ def is_idle_command(text: str) -> bool:
     normalized = re.sub(r"\s+", " ", normalized).strip(" ,:-")
     if normalized in IDLE_COMMANDS:
         return True
-    return normalized.startswith(("shut up", "shutup", "stop listening", "go idle", "go to sleep"))
+    return normalized.startswith(("shut up", "shutup", "stop listening", "keep quiet", "shush", "shut it"))
 
 
 def start_microphone_stt(command_queue: "queue.Queue[str]", energy_threshold: Optional[int], pause_event: "threading.Event", client: LaptopJarvisClient) -> object:
@@ -221,7 +216,7 @@ def run_assistant(start_server: bool, text_mode: bool, energy_threshold: Optiona
     try:
         while True:
             if text_mode:
-                command = input("Assistant > ").strip()
+                command = input("User > ").strip()
             else:
                 command = commands.get()
                 

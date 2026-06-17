@@ -187,20 +187,117 @@ class AgenticControlMixin:
 
     def _open_folder(self, folder_path: str) -> str:
         try:
+            import os
+            import concurrent.futures
+            import string
+            
             user_dir = os.path.expanduser("~")
+            
+            # 1. Clean the input using regex
+            import re
+            clean_name = folder_path.lower()
+            clean_name = re.sub(r'\b(jarvis|open|my|the|folder|directory|file|named|name|it is|which is|that is|located|in [a-z] drive)\b', '', clean_name)
+            # Clean up extra spaces
+            clean_name = re.sub(r'\s+', ' ', clean_name).strip()
+            
+            # Context extraction
+            parts = re.split(r'\s+in\s+|\s+inside\s+|\s+from\s+', clean_name)
+            target_name = parts[0].strip()
+            parent_name = parts[1].strip() if len(parts) > 1 else None
+            
+            # Ignore pronouns since last_opened_folder automatically handles contextual prioritization
+            if parent_name in ["that", "this", "it", "there"]:
+                parent_name = None
+            
             shortcuts = {
                 "downloads": os.path.join(user_dir, "Downloads"),
                 "documents": os.path.join(user_dir, "Documents"),
                 "desktop": os.path.join(user_dir, "Desktop"),
                 "pictures": os.path.join(user_dir, "Pictures"),
+                "videos": os.path.join(user_dir, "Videos"),
+                "music": os.path.join(user_dir, "Music"),
             }
-            target = shortcuts.get(folder_path.lower(), folder_path)
+            target = shortcuts.get(target_name, folder_path)
+            
+            # Check shortcut first
             if os.path.exists(target):
                 os.startfile(target)
-                return f"Opening folder: {folder_path}"
-            return f"Folder not found: {folder_path}"
-        except Exception:
-            return f"Could not open folder: {folder_path}"
+                return f"Opening: {clean_name}"
+                
+            # Check exact match if it was an absolute path
+            if os.path.exists(folder_path):
+                os.startfile(folder_path)
+                return f"Opening: {folder_path}"
+                
+            # 2. Deep Parallel Search
+            print(f"\n[Jarvis] '{target_name}' not in shortcuts. Initiating Deep Parallel Search...")
+            
+            search_paths = []
+            
+            # Prioritize last opened folder if we have one
+            last_opened = getattr(self, '_last_opened_folder', None)
+            if last_opened and os.path.exists(last_opened):
+                search_paths.append(last_opened)
+                print(f"[Jarvis] Prioritizing last opened folder: {last_opened}")
+            
+            # Make sure user_dir is prioritized
+            if user_dir not in search_paths:
+                search_paths.append(user_dir)
+                
+            # Add all available physical drives (including C:\ because we skip system folders)
+            for letter in string.ascii_uppercase:
+                drive = f"{letter}:\\"
+                if os.path.exists(drive) and drive not in search_paths:
+                    search_paths.append(drive)
+            
+            found_path = None
+            
+            def search_dir(base_dir):
+                # Search recursively but skip heavy system folders
+                skip_dirs = {'windows', 'program files', 'program files (x86)', 'appdata', 'node_modules', '$recycle.bin', 'programdata', 'perflogs', 'recovery', 'system volume information'}
+                for root, dirs, files in os.walk(base_dir):
+                    dirs[:] = [d for d in dirs if not d.startswith('.') and d.lower() not in skip_dirs]
+                    
+                    for d in dirs:
+                        # If a parent context was given ("in Bimal"), ensure the path contains the parent
+                        if parent_name and parent_name not in root.lower() and parent_name not in d.lower():
+                            continue
+                            
+                        if d.lower() == target_name:
+                            return os.path.join(root, d)
+                        # Partial match if it's very close
+                        if len(target_name) >= 4 and target_name in d.lower() and len(d) < len(target_name) + 5:
+                            return os.path.join(root, d)
+                            
+                    for f in files:
+                        if parent_name and parent_name not in root.lower():
+                            continue
+                            
+                        name_without_ext = os.path.splitext(f)[0].lower()
+                        if f.lower() == target_name or name_without_ext == target_name:
+                            return os.path.join(root, f)
+                        # Partial match if it's very close
+                        if len(target_name) >= 4 and target_name in f.lower() and len(f) < len(target_name) + 8:
+                            return os.path.join(root, f)
+                return None
+                
+            # Run search in parallel threads across the root paths
+            with concurrent.futures.ThreadPoolExecutor(max_workers=len(search_paths)) as executor:
+                futures = {executor.submit(search_dir, path): path for path in search_paths}
+                for future in concurrent.futures.as_completed(futures):
+                    result = future.result()
+                    if result:
+                        found_path = result
+                        break
+                        
+            if found_path and os.path.exists(found_path):
+                self._last_opened_folder = os.path.dirname(found_path) if os.path.isfile(found_path) else found_path
+                os.startfile(found_path)
+                return f"Deep search found and opened: {found_path}"
+                
+            return f"File/Folder not found after deep search: {folder_path}"
+        except Exception as e:
+            return f"Could not open folder: {folder_path} (Error: {e})"
 
     def _search_files(self, query: str) -> str:
         try:
