@@ -1,4 +1,5 @@
 import logging
+# pyrefly: ignore [missing-import]
 from fastapi import FastAPI
 from server.api.routes import router
 

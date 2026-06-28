@@ -3,7 +3,9 @@ import threading
 import logging
 from typing import List, Dict, Any, Optional
 
+# pyrefly: ignore [missing-import]
 from mcp import ClientSession, StdioServerParameters
+# pyrefly: ignore [missing-import]
 from mcp.client.stdio import stdio_client
 from contextlib import AsyncExitStack
 

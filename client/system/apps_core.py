@@ -59,6 +59,7 @@ class AppManagementMixin:
                 raw_app = re.sub(r"\s+(?:in|on)\s+(?:chrome|browser)$", "", raw_app).strip()
                 raw_app = re.sub(r"^(the|a|an)\s+", "", raw_app).strip()
                 raw_app = re.sub(r"\s+app$", "", raw_app).strip()
+                raw_app = re.sub(r"\s+web$", "", raw_app).strip()
                 self.pending_alias_suggestion = None
                 app = self.dynamic_aliases.get(raw_app, APP_ALIASES.get(raw_app, raw_app))
                 app_map = {
@@ -203,10 +204,13 @@ class AppManagementMixin:
                     
                 with concurrent.futures.ThreadPoolExecutor(max_workers=len(valid_dirs)) as executor:
                     futures = {executor.submit(search_directory, d): d for d in valid_dirs}
-                    for future in concurrent.futures.as_completed(futures):
-                        result = future.result()
-                        if result:
-                            return result
+                    try:
+                        for future in concurrent.futures.as_completed(futures, timeout=3.0):
+                            result = future.result()
+                            if result:
+                                return result
+                    except concurrent.futures.TimeoutError:
+                        pass
                 return None
 
             def _close_app(self, app_name: str) -> str:
