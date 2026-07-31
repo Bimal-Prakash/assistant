@@ -1,17 +1,4 @@
-import os
 import re
-import json
-import time
-import queue
-import shutil
-import struct
-import tempfile
-import threading
-import subprocess
-from urllib.parse import quote_plus
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-import requests
 import difflib
 
 from client.config import *
@@ -21,7 +8,7 @@ class WakeWordMixin:
                 normalized = self._normalize_text_command(text)
                 if not normalized:
                     return ""
-        
+
                 substitutions = {
                     "jarvish": "jarvis",
                     "jarvees": "jarvis",
@@ -36,7 +23,7 @@ class WakeWordMixin:
                 }
                 for src, dst in substitutions.items():
                     normalized = re.sub(rf"\b{re.escape(src)}\b", dst, normalized)
-        
+
                 normalized = re.sub(r"\s+", " ", normalized).strip()
                 return normalized
 
@@ -44,29 +31,29 @@ class WakeWordMixin:
                 normalized = self._normalize_wake_probe(text)
                 if not normalized:
                     return False
-        
+
                 if normalized == "jarvis" or normalized.startswith("jarvis "):
                     return True
-        
+
                 wake_candidates = [self._normalize_wake_probe(w) for w in (list(WAKE_WORDS) + list(WAKE_WORD_VARIANTS))]
                 for wake in wake_candidates:
                     if wake and normalized.startswith(wake):
                         return True
-        
+
                 if not ACCENT_TOLERANT_MODE:
                     return False
-        
+
                 words = normalized.split()
                 if len(words) < 2:
                     return False
-        
+
                 if words[0] not in WAKE_LEAD_TOKENS:
                     return False
-        
+
                 probe_values = [" ".join(words[:2])]
                 if len(words) >= 3:
                     probe_values.append(" ".join(words[:3]))
-        
+
                 for probe in probe_values:
                     # Reject fuzzy wake when transcript does not even resemble "jarvis" token.
                     if not any(token in probe for token in ("jar", "jarv", "jerv")):
@@ -84,21 +71,21 @@ class WakeWordMixin:
                 normalized = self._normalize_wake_probe(t)
                 if not normalized:
                     return ""
-        
+
                 if normalized == "jarvis":
                     return ""
                 if normalized.startswith("jarvis "):
                     return " ".join(t.split()[1:]).lstrip(" ,:-").strip()
-        
+
                 wake_candidates = [self._normalize_wake_probe(w) for w in (list(WAKE_WORDS) + list(WAKE_WORD_VARIANTS))]
-        
+
                 # Exact prefix detection first.
                 for wake in wake_candidates:
                     if wake and normalized.startswith(wake):
                         word_count = len(wake.split())
                         remainder = " ".join(t.split()[word_count:])
                         return remainder.lstrip(" ,:-").strip()
-        
+
                 # Fuzzy prefix detection for accent/mishearing tolerance.
                 if ACCENT_TOLERANT_MODE:
                     words = t.split()
@@ -112,6 +99,6 @@ class WakeWordMixin:
                                 if wake and difflib.SequenceMatcher(None, first_two, wake).ratio() >= WAKE_FUZZY_THRESHOLD:
                                     remainder = " ".join(words[2:])
                                     return remainder.lstrip(" ,:-").strip()
-        
+
                 return ""
 

@@ -1,21 +1,8 @@
-import os
-import re
-import json
-import time
-import queue
-import shutil
 import struct
-import tempfile
-import threading
-import subprocess
 import math
 import io
 import wave
-from urllib.parse import quote_plus
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-import requests
-import difflib
+from typing import Any, List, Optional
 
 from client.config import *
 
@@ -42,16 +29,16 @@ class AudioDeviceMixin:
                 return frame
             if not STT_AGC_ENABLED:
                 return frame
-    
+
             rms = self._frame_rms(frame)
             if rms < 20:
                 return frame
-    
+
             desired_gain = STT_AGC_TARGET_RMS / max(rms, 1.0)
             desired_gain = min(STT_AGC_MAX_GAIN, max(STT_AGC_MIN_GAIN, desired_gain))
             self._input_gain = (self._input_gain * 0.85) + (desired_gain * 0.15)
             gain = min(STT_AGC_MAX_GAIN, max(STT_AGC_MIN_GAIN, self._input_gain))
-    
+
             adjusted: List[int] = []
             for sample in frame:
                 value = int(sample * gain)
@@ -74,10 +61,10 @@ class AudioDeviceMixin:
         def _open_recorder_with_fallback(self) -> Any:
             if pvrecorder is None:
                 raise RuntimeError("PvRecorder is unavailable")
-    
+
             devices = self._available_input_devices()
             candidates: List[int] = []
-    
+
             if self._mic_device_index_override is not None:
                 candidates.append(self._mic_device_index_override)
             elif self._active_mic_device_index is not None:
@@ -89,12 +76,12 @@ class AudioDeviceMixin:
                 if devices:
                     candidates.append(0)
                 candidates.append(-1)
-    
+
             scan_limit = min(len(devices), 8)
             for idx in range(scan_limit):
                 if idx not in candidates:
                     candidates.append(idx)
-    
+
             last_exc: Optional[Exception] = None
             for idx in candidates:
                 try:
@@ -109,7 +96,7 @@ class AudioDeviceMixin:
                 except Exception as exc:
                     last_exc = exc
                     continue
-    
+
             raise RuntimeError(f"Could not open any microphone input: {last_exc}")
 
         def _maybe_rotate_mic_device(self) -> None:
@@ -118,11 +105,11 @@ class AudioDeviceMixin:
             devices = self._available_input_devices()
             if not devices or len(devices) <= 1:
                 return
-    
+
             if self._active_mic_device_index is None or self._active_mic_device_index < 0:
                 self._active_mic_device_index = 0
                 return
-    
+
             self._active_mic_device_index = (self._active_mic_device_index + 1) % len(devices)
             try:
                 if not TERMINAL_MINIMAL:

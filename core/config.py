@@ -27,6 +27,7 @@ PORT = int(os.getenv("JARVIS_PORT", "8000"))
 
 OLLAMA_API_URL = os.getenv("OLLAMA_API_URL", "http://127.0.0.1:11434/api/generate")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL")
+OLLAMA_VISION_MODEL = os.getenv("OLLAMA_VISION_MODEL")
 OLLAMA_TIMEOUT_SECONDS = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "60"))
 OLLAMA_KEEP_ALIVE_SECONDS = int(os.getenv("OLLAMA_KEEP_ALIVE_SECONDS", "0"))
 
@@ -68,6 +69,7 @@ ALLOWED_ACTIONS = {
     "show_notification",
     "set_timer",
     "open_folder",
+    "open_file",
     "search_files",
     "whatsapp_call",
     "open_website",
@@ -87,6 +89,8 @@ ALLOWED_ACTIONS = {
 JARVIS_MEMORY_DATABASE_URL = os.getenv("JARVIS_MEMORY_DATABASE_URL", "")
 JARVIS_MEMORY_HISTORY_LIMIT = int(os.getenv("JARVIS_MEMORY_HISTORY_LIMIT", "12"))
 JARVIS_MEMORY_FACT_LIMIT = int(os.getenv("JARVIS_MEMORY_FACT_LIMIT", "20"))
+
+ENABLE_PROACTIVE_BACKGROUND_TASKS = os.getenv("ENABLE_PROACTIVE_BACKGROUND_TASKS", "False").lower() in ("true", "1", "yes")
 
 
 

@@ -1,21 +1,7 @@
-import os
 import re
-import json
-import time
-import queue
-import shutil
-import struct
-import tempfile
-import threading
-import subprocess
-from urllib.parse import quote_plus
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-import requests
-import difflib
+from typing import Any, Dict
 
 from client.config import *
-from client.ui import StatusHud
 
 snapshot_download = WhisperModel = Model = KaldiRecognizer = SetLogLevel = pvrecorder = None
 
@@ -44,13 +30,13 @@ class RulesMixin:
                     return False
                 if "error" in text or "not found" in text or "unsupported" in text:
                     return False
-                
+
                 quiet_prefixes = (
-                    "opening ", "closing ", "playing ", "searching ", "toggling ", 
-                    "skipping ", "going to previous", "increasing ", "decreasing ", 
-                    "setting pc ", "setting brightness", "setting volume", "adjusting ", 
-                    "muting ", "opened ", "liked ", "focused ", "snapping ", "maximized ", 
-                    "minimized ", "restored ", "locked ", "emptied ", "took ", "showing ", 
+                    "opening ", "closing ", "playing ", "searching ", "toggling ",
+                    "skipping ", "going to previous", "increasing ", "decreasing ",
+                    "setting pc ", "setting brightness", "setting volume", "adjusting ",
+                    "muting ", "opened ", "liked ", "focused ", "snapping ", "maximized ",
+                    "minimized ", "restored ", "locked ", "emptied ", "took ", "showing ",
                     "set timer", "searched ", "executing ", "done", "okay", "sure", "got it",
                     "working on it"
                 )

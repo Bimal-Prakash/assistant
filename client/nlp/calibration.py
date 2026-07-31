@@ -1,18 +1,6 @@
 import os
-import re
 import json
-import time
-import queue
-import shutil
-import struct
-import tempfile
-import threading
-import subprocess
-from urllib.parse import quote_plus
 from datetime import datetime
-from typing import Any, Dict, List, Optional
-import requests
-import difflib
 
 from client.config import *
 
@@ -72,11 +60,11 @@ class CalibrationMixin:
                 profile = self._stt_profile_cache.get(self._stt_profile_key(), {})
                 if not isinstance(profile, dict):
                     return
-        
+
                 noise_floor = profile.get("noise_floor_rms")
                 if isinstance(noise_floor, (int, float)):
                     self._noise_floor_rms = max(STT_NOISE_MIN_RMS, float(noise_floor))
-        
+
                 input_gain = profile.get("input_gain")
                 if isinstance(input_gain, (int, float)):
                     self._input_gain = min(STT_AGC_MAX_GAIN, max(STT_AGC_MIN_GAIN, float(input_gain)))
@@ -86,23 +74,23 @@ class CalibrationMixin:
                     return
                 if frames < STT_CALIBRATION_MIN_UTTERANCE_FRAMES:
                     return
-        
+
                 key = self._stt_profile_key()
                 prev = self._stt_profile_cache.get(key, {})
                 if not isinstance(prev, dict):
                     prev = {}
-        
+
                 prev_count = int(prev.get("samples", 0)) if isinstance(prev.get("samples", 0), int) else 0
                 new_count = prev_count + 1
-        
+
                 prev_noise = float(prev.get("noise_floor_rms", STT_NOISE_MIN_RMS))
                 prev_speech = float(prev.get("speech_rms", max(STT_AGC_TARGET_RMS, STT_NOISE_MIN_RMS)))
                 prev_gain = float(prev.get("input_gain", 1.0))
-        
+
                 merged_noise = (prev_noise * prev_count + float(noise_floor_rms)) / float(new_count)
                 merged_speech = (prev_speech * prev_count + float(speech_rms)) / float(new_count)
                 merged_gain = (prev_gain * prev_count + float(input_gain)) / float(new_count)
-        
+
                 self._stt_profile_cache[key] = {
                     "samples": new_count,
                     "noise_floor_rms": max(STT_NOISE_MIN_RMS, merged_noise),

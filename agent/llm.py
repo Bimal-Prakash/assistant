@@ -11,7 +11,7 @@ import logging
 import os
 import time
 from json import JSONDecodeError
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
@@ -24,6 +24,9 @@ logger = logging.getLogger("jarvis.agent")
 
 class ModelError(Exception):
     pass
+
+_CHROMA_CLIENT = None
+_CHROMA_COLLECTION = None
 
 
 # ------------------------------------------------------------------
@@ -76,7 +79,18 @@ USER_STATE_TEMPLATE = """## Conversation History
 ## Execution Log (this turn)
 {execution_log}
 
-CRITICAL: Read the Conversation History! If the conversation history ALREADY contains the context or answer you need (e.g. a previously mentioned artist, name, or fact), you MUST use it directly. DO NOT search for it again. If the Execution Log contains the observation you need, use `final_answer` to respond. DO NOT repeat the exact same tool call!"""
+CRITICAL INSTRUCTIONS:
+1. If the Execution Log contains search results, READ THEM. If you find the answer (even partially), use `final_answer`.
+2. NEVER repeat the exact same tool call. If you are stuck, use `final_answer` to ask the user.
+
+OUTPUT FORMAT:
+You MUST respond with a single valid JSON object containing exactly three keys: "thought", "tool", and "tool_args". Do NOT include markdown formatting. Do NOT include conversational text.
+Example:
+{{
+  "thought": "The observation says 'The capital of France is Paris'. I will use the final_answer tool to relay this.",
+  "tool": "final_answer",
+  "tool_args": {{"text": "The capital of France is Paris."}}
+}}"""
 
 
 def _build_prompt(
@@ -96,7 +110,7 @@ def _build_prompt(
         history_str = "(no previous conversation)"
 
     sys_prompt = SYSTEM_PROMPT.format(
-        tools=tools_block, 
+        tools=tools_block,
         model=OLLAMA_MODEL or "configured",
         vision_model="moondream",
         assistant_name=os.getenv("JARVIS_ASSISTANT_NAME", "JARVIS"),
@@ -120,6 +134,7 @@ class ConversationManager:
         self._ttl = ttl_seconds
 
     def add_turn(self, session_id: str, role: str, content: str) -> None:
+        import time
         now = time.time()
         if session_id not in self._sessions:
             self._sessions[session_id] = {"turns": [], "last_active": now}
@@ -129,6 +144,43 @@ class ConversationManager:
         # Trim to max turns (each turn = 1 entry)
         if len(session["turns"]) > self._max_turns * 2:
             session["turns"] = session["turns"][-(self._max_turns * 2):]
+
+        import threading
+        threading.Thread(target=self._index_chat_turn, args=(role, content), daemon=True).start()
+
+    def _index_chat_turn(self, role: str, content: str):
+        if not content.strip() or role == "system":
+            return
+
+        try:
+            global _CHROMA_CLIENT, _CHROMA_COLLECTION
+            if _CHROMA_CLIENT is None:
+                # pyrefly: ignore [missing-import]
+                import chromadb
+                # pyrefly: ignore [missing-import]
+                from chromadb.utils.embedding_functions import OllamaEmbeddingFunction
+                from core.config import OLLAMA_API_URL
+                import os
+
+                db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "chroma_db_chat")
+                _CHROMA_CLIENT = chromadb.PersistentClient(path=db_path)
+                base_url = OLLAMA_API_URL.replace("/api/generate", "")
+                ef = OllamaEmbeddingFunction(
+                    model_name="nomic-embed-text",
+                    url=f"{base_url}/api/embeddings"
+                )
+                _CHROMA_COLLECTION = _CHROMA_CLIENT.get_or_create_collection(name="chat_history", embedding_function=ef)
+            import time
+
+            doc_id = f"{int(time.time()*1000)}_{role}"
+            doc = f"{role.capitalize()}: {content}"
+            _CHROMA_COLLECTION.add(
+                documents=[doc],
+                metadatas=[{"role": role, "timestamp": time.time()}],
+                ids=[doc_id]
+            )
+        except Exception as e:
+            logger.warning(f"Failed to index chat turn: {e}")
 
     def get_history(self, session_id: str) -> List[Dict[str, str]]:
         self._cleanup()
@@ -180,17 +232,17 @@ class OllamaCommandModel:
                 executor=_make_executor(name),
             ))
 
-    def _call_model(self, sys_prompt: str, user_prompt: str) -> Dict[str, Any]:
+    def _call_model(self, sys_prompt: str, user_prompt: str, context: Optional[List[int]] = None) -> Tuple[Dict[str, Any], List[int]]:
         schema = {
             "type": "object",
             "properties": {
                 "thought": {
                     "type": "string",
-                    "description": "Step-by-step reasoning about the command and next steps."
+                    "description": "Step-by-step reasoning. IMPORTANT: If you just received an observation from a search tool, you MUST explicitly quote the relevant sentences from the observation here before deciding your next tool."
                 },
                 "tool": {
                     "type": "string",
-                    "enum": [t.name for t in self.registry.all_tools()],
+                    "enum": [t.name for t in self.registry.all_tools()] + ["final_answer"],
                     "description": "The exact name of the tool to run, or 'final_answer'."
                 },
                 "tool_args": {
@@ -205,12 +257,12 @@ class OllamaCommandModel:
             "model": self.model,
             "system": sys_prompt,
             "prompt": user_prompt,
+            "context": context or [],
             "stream": False,
-            "format": schema,
             "keep_alive": self.keep_alive_seconds,
             "options": {
                 "temperature": 0,
-                "num_ctx": 4096,
+                "num_ctx": 3072,
                 "num_predict": 512,
                 "num_batch": 256,
             },
@@ -230,12 +282,26 @@ class OllamaCommandModel:
             raise ModelError("Ollama response was not valid JSON") from exc
 
         raw_text = str(body.get("response", "")).strip()
+        context = body.get("context", [])
         logger.info("Raw model output: %s", raw_text[:500])
 
         try:
-            return _extract_json(raw_text)
+            return _extract_json(raw_text), context
         except JSONDecodeError as exc:
             raise ModelError(f"Model did not return strict JSON: {exc}") from exc
+
+    def _force_unload_model(self) -> None:
+        """Unload the current model from VRAM to make room for other models (e.g. vision)."""
+        logger.info(f"Force unloading model {self.model} from VRAM...")
+        payload = {
+            "model": self.model,
+            "prompt": "",
+            "keep_alive": 0
+        }
+        try:
+            requests.post(self.api_url, json=payload, timeout=5)
+        except Exception as e:
+            logger.warning(f"Failed to unload model {self.model}: {e}")
 
     def run_agent_loop(
         self,
@@ -258,7 +324,9 @@ class OllamaCommandModel:
 
         # Execution log accumulates within this single request
         execution_log = ""
-        previous_calls = set()
+        previous_calls = {}
+
+        current_context = []
 
         for iteration in range(max_iterations):
             sys_prompt, user_prompt = _build_prompt(
@@ -269,7 +337,7 @@ class OllamaCommandModel:
             )
 
             try:
-                action_obj = self._call_model(sys_prompt, user_prompt)
+                action_obj, _ = self._call_model(sys_prompt, user_prompt, None)
             except ModelError as e:
                 logger.error("Agent model error on step %d: %s", iteration + 1, e)
                 return self._make_speak_action("I encountered an error while thinking.", default_target)
@@ -283,22 +351,40 @@ class OllamaCommandModel:
                 iteration + 1, thought, tool_name, json.dumps(tool_args, ensure_ascii=False),
             )
 
+            # --- AGI Thought Logging to Obsidian ---
+            if thought:
+                import os, datetime
+                import contextlib
+                with contextlib.suppress(Exception):
+                    obsidian_path = os.environ.get("JARVIS_THOUGHTS_PATH")
+                    
+                    if obsidian_path:
+                        # Auto-archive if the file gets larger than 2MB to prevent monolithic slowdowns
+                        if os.path.exists(obsidian_path) and os.path.getsize(obsidian_path) > 2 * 1024 * 1024:
+                            timestamp_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                            archive_path = obsidian_path.replace(".md", f"_{timestamp_str}.md")
+                            os.rename(obsidian_path, archive_path)
+
+                        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        with open(obsidian_path, "a", encoding="utf-8") as f:
+                            f.write(f"### [{now}]\n")
+                            f.write(f"- **Thought:** {thought}\n")
+                            f.write(f"- **Action:** `{tool_name}` with args: `{json.dumps(tool_args, ensure_ascii=False)}`\n\n")
+
             # Detect repeated tool calls to prevent infinite loops
             call_sig = json.dumps({"tool": tool_name, "args": tool_args}, sort_keys=True)
             if call_sig in previous_calls:
-                logger.warning("Agent repeated same tool call. Breaking loop to prevent infinite loop.")
-                if tool_name == "semantic_search_obsidian":
-                    err_msg = "I searched my local notes but I couldn't find an answer for that."
-                elif tool_name == "ask_chatgpt":
-                    err_msg = "I tried asking ChatGPT, but I couldn't get a clear answer."
-                elif tool_name == "analyze_ui":
-                    err_msg = "I looked at the screen but I couldn't find the button or element you were referring to."
-                else:
-                    err_msg = "I tried to execute that action, but it didn't work as expected. Could you rephrase?"
+                previous_calls[call_sig] += 1
+                if previous_calls[call_sig] >= 3:
+                    logger.warning("Agent repeated same tool call 3 times. Forcing abort to prevent loop.")
+                    return self._make_speak_action("I'm stuck in a loop trying to search. Could you rephrase or be more specific?", default_target)
                 
-                self.conversations.add_turn(session_id, "assistant", err_msg)
-                return self._make_speak_action(err_msg, default_target)
-            previous_calls.add(call_sig)
+                logger.warning("Agent repeated same tool call. Injecting error to prompt.")
+                observation = f"ERROR: You just repeated the exact same tool call `{tool_name}` with identical arguments! You MUST use a different tool, change the arguments (e.g. use a shorter search query), or use `final_answer` to respond."
+                execution_log += f"\n[Step {iteration+1}] Thought: {thought}\nTool: {tool_name}\nArgs: {json.dumps(tool_args)}\nObservation:\n<observation>\n{observation}\n</observation>\n"
+                continue
+            else:
+                previous_calls[call_sig] = 1
 
             # ---- final_answer: we're done ----
             if tool_name == "final_answer":
@@ -306,23 +392,23 @@ class OllamaCommandModel:
                 if not answer_text and isinstance(tool_args, dict) and tool_args:
                     # Fallback: just grab the first value in the dict
                     answer_text = next(iter(tool_args.values()))
-                
+
                 if not answer_text:
                     observation = "Error: final_answer requires a 'text' argument containing what you want to say to the user. Please try again."
-                    execution_log += f"\n[Step {iteration+1}] Thought: {thought}\nTool: {tool_name}\nArgs: {json.dumps(tool_args)}\nObservation: {observation}\n"
+                    execution_log += f"\n[Step {iteration+1}] Thought: {thought}\nTool: {tool_name}\nArgs: {json.dumps(tool_args)}\nObservation:\n<observation>\n{observation}\n</observation>\n"
                     continue
-                    
+
                 self.conversations.add_turn(session_id, "assistant", str(answer_text))
                 return self._make_speak_action(str(answer_text), default_target)
 
             # ---- Client-side actions ----
             # These return JSON with _client_action; we return them to the client.
             CLIENT_ACTIONS = {
-                "open_app", "close_app", "minimize_app", "maximize_app", "restore_app", 
-                "focus_app", "hide_all_windows", "snap_window", "read_clipboard", 
-                "write_clipboard", "press_shortcut", "check_performance", "lock_pc", 
-                "empty_recycle_bin", "take_screenshot", "show_notification", "set_timer", 
-                "open_folder", "search_files", "whatsapp_call", "open_website", "send_whatsapp"
+                "open_app", "close_app", "minimize_app", "maximize_app", "restore_app",
+                "focus_app", "hide_all_windows", "snap_window", "read_clipboard",
+                "write_clipboard", "press_shortcut", "check_performance", "lock_pc",
+                "empty_recycle_bin", "save_screenshot_to_desktop", "show_notification", "set_timer",
+                "open_folder", "open_file", "whatsapp_call", "open_website", "send_whatsapp"
             }
             if tool_name in CLIENT_ACTIONS:
                 observation = self.registry.execute(tool_name, tool_args)
@@ -338,10 +424,13 @@ class OllamaCommandModel:
                 except (json.JSONDecodeError, ValueError):
                     pass
                 # If it wasn't a client action JSON, treat as observation
-                execution_log += f"\n[Step {iteration+1}] Thought: {thought}\nTool: {tool_name}\nArgs: {json.dumps(tool_args)}\nObservation: {observation}\n"
+                execution_log += f"\n[Step {iteration+1}] Thought: {thought}\nTool: {tool_name}\nArgs: {json.dumps(tool_args)}\nObservation:\n<observation>\n{observation}\n</observation>\n"
                 continue
 
             # ---- Server-side tools (everything else) ----
+            if tool_name == "look_at_screen":
+                self._force_unload_model()
+
             observation = self.registry.execute(tool_name, tool_args)
             logger.info("Tool observation: %s", observation[:300])
 
@@ -366,13 +455,13 @@ class OllamaCommandModel:
                     "_pending_args": tool_args,
                 }
 
-            if tool_name in ["volume_control", "brightness_control", "media_control", "network_control", "mic_control", "power_control"]:
+            if tool_name in ["volume_control", "brightness_control", "media_control", "network_control", "mic_control", "power_control", "look_at_screen"]:
                 if not observation.startswith("Error executing"):
                     # Force immediate exit for basic hardware actions to prevent small LLMs from infinite looping
                     self.conversations.add_turn(session_id, "assistant", observation)
                     return self._make_speak_action(observation, default_target)
 
-            execution_log += f"\n[Step {iteration+1}] Thought: {thought}\nTool: {tool_name}\nArgs: {json.dumps(tool_args)}\nObservation: {observation}\n"
+            execution_log += f"\n[Step {iteration+1}] Thought: {thought}\nTool: {tool_name}\nArgs: {json.dumps(tool_args)}\nObservation:\n<observation>\n{observation}\n</observation>\n"
 
         # Ran out of iterations
         fallback = "I thought too long and had to stop. Could you rephrase?"

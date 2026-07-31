@@ -85,22 +85,22 @@ class ConfirmationMixin:
             cleaned_lower = self.cleaned.strip().lower()
             cmd = pending_terminal["command"]
             target = pending_terminal["target"]
-            
+
             if cleaned_lower in {"cancel", "cancel it", "no", "stop", "abort"}:
                 with _CONFIRMATION_LOCK:
                     PENDING_TERMINAL_CONFIRMATIONS.pop(self.confirmation_key, None)
                 return self._finalize(ActionResponse(action="type_text", text="Cancelled terminal command.", response="Cancelled.", target=target))
-                
+
             if cleaned_lower in {"yes", "confirm", "confirm terminal", "do it", "run it", "execute"}:
                 with _CONFIRMATION_LOCK:
                     PENDING_TERMINAL_CONFIRMATIONS.pop(self.confirmation_key, None)
-                    
+
                 from tools.dispatch import execute_pc_system_action
                 result = execute_pc_system_action({"action": "run_terminal", "command": cmd})
                 output = result.get("message", "Executed.")
-                
+
                 return self._finalize(ActionResponse(action="type_text", text=f"Executed. Output: {output}", response="Command executed.", target=target))
-                
+
             with _CONFIRMATION_LOCK:
                 PENDING_TERMINAL_CONFIRMATIONS.pop(self.confirmation_key, None)
 

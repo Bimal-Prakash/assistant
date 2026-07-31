@@ -76,6 +76,7 @@ def run_backend() -> None:
         port=PORT,
         reload=False,
         log_level="info",
+        access_log=False,
     )
 
 
@@ -112,7 +113,7 @@ def start_microphone_stt(command_queue: "queue.Queue[str]", energy_threshold: Op
                     command_queue.put(text)
                 return
             except sr.UnknownValueError:
-                log.info("Google STT: Unintelligible or silence.")
+                # log.info("Google STT: Unintelligible or silence.")
                 return  # It was silence or unintelligible, don't retry
             except Exception as exc:
                 if attempt == 0:
@@ -145,7 +146,7 @@ def start_microphone_stt(command_queue: "queue.Queue[str]", energy_threshold: Op
                         try:
                             audio = recognizer.listen(source, timeout=1, phrase_time_limit=15)
                             if running[0] and not pause_event.is_set():
-                                log.info("Audio captured. Sending to Google STT...")
+                                # log.info("Audio captured. Sending to Google STT...")
                                 threading.Thread(target=audio_callback, args=(recognizer, audio), daemon=True).start()
                         except sr.WaitTimeoutError:
                             pass
@@ -177,19 +178,19 @@ def run_assistant(start_server: bool, text_mode: bool, energy_threshold: Optiona
             from core.config import OLLAMA_API_URL, OLLAMA_MODEL
             logging.info(f"Pre-warming Ollama model {OLLAMA_MODEL} into VRAM...")
             requests.post(
-                OLLAMA_API_URL, 
+                OLLAMA_API_URL,
                 json={
-                    "model": OLLAMA_MODEL, 
-                    "prompt": "hello", 
-                    "stream": False, 
+                    "model": OLLAMA_MODEL,
+                    "prompt": "hello",
+                    "stream": False,
                     "keep_alive": "10m"
-                }, 
+                },
                 timeout=120
             )
             logging.info("Ollama model pre-warmed successfully. First command will be instant!")
         except Exception as e:
             logging.warning(f"Ollama pre-warm failed: {e}")
-            
+
     threading.Thread(target=prewarm_ollama, daemon=True).start()
 
     client = LaptopJarvisClient(BACKEND_URL, hud_enabled=False)
@@ -219,13 +220,18 @@ def run_assistant(start_server: bool, text_mode: bool, energy_threshold: Optiona
         while True:
             if text_mode:
                 command = input("User > ").strip()
+                if command:
+                    client.stop_speaking()
             else:
                 command = commands.get()
-                
+                if command:
+                    client.stop_speaking()
+
             # Benchmark telemetry
-            import os, time
+            import os
+            import time
             os.environ["COMMAND_START_TIME"] = str(time.time())
-            print(f"\n[Benchmark] Voice recognized: 0.00s")
+            print("\n[Benchmark] Voice recognized: 0.00s")
 
             # Apply dynamic STT corrections from environment variables
             # Format in .env: JARVIS_STT_CORRECTIONS="vimal:bimal,pawan:pavan"
@@ -269,13 +275,13 @@ def run_assistant(start_server: bool, text_mode: bool, energy_threshold: Optiona
 
             # --- Conversational State Machine for Incomplete Commands ---
             cmd_lower = command.lower().strip()
-            
+
             # If we asked a clarifying question last turn, prepend the verb!
             if pending_clarification:
                 command = f"{pending_clarification} {command}"
                 cmd_lower = command.lower().strip()
                 pending_clarification = None
-                
+
             # Intercept incomplete one-word commands instantly
             if cmd_lower in ["open", "close", "minimize", "minimise", "play", "call"]:
                 pending_clarification = cmd_lower
@@ -313,9 +319,9 @@ def run_assistant(start_server: bool, text_mode: bool, energy_threshold: Optiona
                         client.speak("Action canceled.")
                         active = False
                         break
-                        
+
                     result = client.execute_pc_action(action)
-                    
+
                     if action.get("action") == "whatsapp_call":
                         if result and "canceled" in result.lower():
                             log.info("WhatsApp call was canceled.")
@@ -330,7 +336,7 @@ def run_assistant(start_server: bool, text_mode: bool, energy_threshold: Optiona
                             # Drain any residual commands from before the pause
                             while not commands.empty():
                                 commands.get_nowait()
-                            
+
                 except Exception as exc:
                     log.exception("Command failed")
                     client.speak(f"Command failed: {exc}")

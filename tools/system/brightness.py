@@ -1,6 +1,7 @@
 import logging
 try:
     import screen_brightness_control as sbc  # type: ignore
+    logging.getLogger("screen_brightness_control").setLevel(logging.ERROR)
 except Exception:
     sbc = None
 

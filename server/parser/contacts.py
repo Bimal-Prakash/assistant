@@ -1,8 +1,7 @@
 import re
-import os
 import json
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Optional
 from pathlib import Path
 from core.config import CONTACTS_FILE
 

@@ -1,5 +1,4 @@
 from client.config import *
-from client.ui import StatusHud
 from client.audio.device import AudioDeviceMixin
 from client.audio.windows.stt import WindowsSTTMixin
 from client.audio.stt_dispatcher import STTDispatcherMixin

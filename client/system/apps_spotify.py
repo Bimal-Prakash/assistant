@@ -1,23 +1,9 @@
 import os
-import re
-import json
 import time
-import queue
-import shutil
-import struct
-import tempfile
-import threading
 import subprocess
-import webbrowser
-import winreg
 from urllib.parse import quote_plus
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-import requests
-import difflib
 
 from client.config import *
-from client.ui import StatusHud
 
 try:
     import pyautogui
@@ -48,8 +34,8 @@ class SpotifyMixin:
                     time.sleep(0.5)
                     width, height = pyautogui.size()
                     pyautogui.click(int(width * 0.5), int(height * 0.35))
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"[Spotify] Focus window error: {e}")
 
             _last_played_random_item = None
 
@@ -69,36 +55,39 @@ class SpotifyMixin:
                         available_parts = [p for p in parts if p != self.__class__._last_played_random_item]
                         if not available_parts:
                             available_parts = parts  # fallback if all were played or something went wrong
-                        
+
                         query = random.choice(available_parts)
                         self.__class__._last_played_random_item = query
                         print(f"[Spotify] Randomly selected: {query}")
-        
+
                 try:
                     search_uri = f"spotify:search:{quote_plus(query)}"
                     subprocess.Popen(["cmd", "/c", "start", "", search_uri], shell=False)
-                    time.sleep(4.0)
-                    
+                    # Dynamically wait instead of static 4s sleep. 
+                    # A static sleep is too slow for fast PCs and too short for budget laptops.
+                    time.sleep(1.5)
+
                     self._focus_spotify_window()
                     time.sleep(1.0)
-                    
-                    # Maximize window guarantees layout. 
+
+                    # Maximize window guarantees layout.
                     width, height = pyautogui.size()
-                    
+
                     # Try to find the play button visually using the image the user provides!
                     # This is the most bulletproof method since Spotify's layout changes.
                     try:
-                        # Check for play_btn.png in root folder
-                        btn_img = os.path.join(os.getcwd(), "play_btn.png")
+                        # Check for play_btn.png in root folder robustly (3 dirnames up from client/system/)
+                        btn_img = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "play_btn.png")
                         if os.path.exists(btn_img):
                             btn_pos = None
-                            for _ in range(10):
-                                try:
-                                    btn_pos = pyautogui.locateCenterOnScreen(btn_img, confidence=0.7)
+                            # Poll for up to 15 seconds (30 * 0.5s) to allow slow budget laptops to load Spotify
+                            for _ in range(30):
+                                import contextlib
+                                with contextlib.suppress(Exception):
+                                    btn_pos = pyautogui.locateCenterOnScreen(btn_img, confidence=0.7, grayscale=True)
                                     if btn_pos: break
-                                except Exception: pass
                                 time.sleep(0.5)
-                                
+
                             if btn_pos:
                                 pyautogui.click(btn_pos)
                                 print(f"[Spotify] Playing: {query} (clicked via image recognition)")
@@ -108,17 +97,24 @@ class SpotifyMixin:
                     except Exception as img_err:
                         err_str = str(img_err) or "ImageNotFoundException"
                         print(f"[Spotify] Image recognition failed/skipped: {err_str}")
-                        
-                    # Fallback: Double click the 'Songs' list first track or 'Top Result'
-                    # The 'Songs' list first track is reliably at x=60%, y=18% 
-                    target_x = int(width * 0.60)
-                    target_y = int(height * 0.18)
-                    
-                    # Move and double click to play the song
-                    pyautogui.moveTo(target_x, target_y)
+
+                    # Fallback: We must wait for the network to load the search results!
+                    # Without image recognition, we don't know exactly when it finishes.
+                    print("[Spotify] Waiting 3 seconds for search results to render...")
+                    time.sleep(3.0)
+
+                    # Strategy 1: Coordinate Click (Top Result card)
+                    # Modern Spotify Top Result card is around x=35%, y=45% when maximized
+                    top_result_x = int(width * 0.35)
+                    top_result_y = int(height * 0.45)
+                    pyautogui.moveTo(top_result_x, top_result_y)
                     time.sleep(0.2)
                     pyautogui.doubleClick()
+                    time.sleep(0.5)
                     
+                    # Strategy 3: Play shortcut
+                    pyautogui.press('enter')
+
                     print(f"[Spotify] Playing: {query}")
                 except Exception as e:
                     print(f"[Spotify] Error: {e}")
@@ -126,7 +122,7 @@ class SpotifyMixin:
             def _spotify_like_current_song(self) -> str:
                 if pyautogui is None:
                     return "Spotify like is unavailable because UI automation is disabled."
-        
+
                 try:
                     subprocess.Popen("spotify", shell=True)
                     time.sleep(1.5)

@@ -3,12 +3,12 @@
 import json
 
 
-def exec_open_app(app: str, text: str = "") -> str:
-    if not app:
-        return "Error: app name is required."
+def exec_open_app(app_name: str, text: str = "") -> str:
+    if not app_name:
+        return "Error: app_name is required."
     return json.dumps({
         "_client_action": "open_app",
-        "app": app.strip().lower(),
+        "app": app_name.strip().lower(),
         "text": text.strip() if text else None,
     })
 
@@ -28,4 +28,12 @@ def exec_minimize_app(app: str) -> str:
     return json.dumps({
         "_client_action": "press_shortcut",
         "shortcut": "win+d",
+    })
+
+def exec_type_string(text: str) -> str:
+    if not text:
+        return "Error: text is required."
+    return json.dumps({
+        "_client_action": "type_string",
+        "text": text,
     })

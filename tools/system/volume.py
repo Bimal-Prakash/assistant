@@ -21,10 +21,9 @@ def _set_endpoint_volume_percent(value: int) -> str:
             interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
             volume = interface.QueryInterface(IAudioEndpointVolume)
             volume.SetMasterVolumeLevelScalar(value / 100.0, None)
-            try:
+            import contextlib
+            with contextlib.suppress(Exception):
                 volume.SetMute(0, None)
-            except Exception:
-                pass
             return f"Setting PC volume to {value}%"
         except Exception:
             logger.exception("Endpoint volume API failed; falling back to volume keys")

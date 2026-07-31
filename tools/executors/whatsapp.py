@@ -15,8 +15,8 @@ def exec_send_whatsapp(phone: str, message: str = "") -> str:
 def exec_whatsapp_call(contact_name: str = "", call_type: str = "audio", **kwargs) -> str:
     # If the LLM hallucinates 'user_name' instead of 'contact_name', catch it!
     name = contact_name or kwargs.get("user_name", "")
-    if not name:
-        return "Error: contact_name is required."
+    if not name and call_type != "end":
+        return "Error: contact_name is required for starting a call."
     return json.dumps({
         "_client_action": "whatsapp_call",
         "contact_name": name,

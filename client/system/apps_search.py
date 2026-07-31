@@ -2,22 +2,10 @@ import os
 import re
 import json
 import time
-import queue
-import shutil
-import struct
-import tempfile
-import threading
 import subprocess
-import webbrowser
-import winreg
-from urllib.parse import quote_plus
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-import requests
-import difflib
+from typing import Dict, List, Optional
 
 from client.config import *
-from client.ui import StatusHud
 
 class StartMenuSearchMixin:
             def _find_start_menu_app_id(self, app_name: str) -> Optional[str]:
@@ -25,18 +13,18 @@ class StartMenuSearchMixin:
                     start_apps = self._get_start_apps()
                 except Exception:
                     return None
-        
+
                 normalized = re.sub(r"\s+", " ", app_name.strip().lower())
                 if not normalized:
                     return None
-        
+
                 exact = next(
                     (item["AppID"] for item in start_apps if item["Name"].strip().lower() == normalized),
                     None,
                 )
                 if exact:
                     return exact
-        
+
                 fuzzy = next(
                     (
                         item["AppID"]
@@ -53,7 +41,7 @@ class StartMenuSearchMixin:
                     and (time.time() - self._start_apps_cache_ts) < START_APPS_CACHE_TTL_SECONDS
                 ):
                     return self._start_apps_cache
-        
+
                 ps_command = (
                     "Get-StartApps | Select-Object Name,AppID | ConvertTo-Json -Compress"
                 )
@@ -67,11 +55,11 @@ class StartMenuSearchMixin:
                     self._start_apps_cache = []
                     self._start_apps_cache_ts = time.time()
                     return self._start_apps_cache
-        
+
                 parsed = json.loads(result.stdout)
                 if isinstance(parsed, dict):
                     parsed = [parsed]
-        
+
                 apps: List[Dict[str, str]] = []
                 if isinstance(parsed, list):
                     for item in parsed:
@@ -81,7 +69,7 @@ class StartMenuSearchMixin:
                         app_id = str(item.get("AppID", "")).strip()
                         if name and app_id:
                             apps.append({"Name": name, "AppID": app_id})
-        
+
                 self._start_apps_cache = apps
                 self._start_apps_cache_ts = time.time()
                 return self._start_apps_cache
@@ -91,18 +79,18 @@ class StartMenuSearchMixin:
                 normalized = re.sub(r"\s+", " ", app_name.strip().lower())
                 if not normalized:
                     return None
-        
+
                 exact = next((item["path"] for item in shortcuts if item["name"] == normalized), None)
                 if exact:
                     return exact
-        
+
                 fuzzy = next((item["path"] for item in shortcuts if normalized in item["name"]), None)
                 return fuzzy
 
             def _get_start_menu_shortcuts(self) -> List[Dict[str, str]]:
                 if self._start_menu_shortcuts_cache is not None:
                     return self._start_menu_shortcuts_cache
-        
+
                 candidates = []
                 roots = [
                     os.path.join(os.environ.get("ProgramData", ""), r"Microsoft\Windows\Start Menu\Programs"),
@@ -120,7 +108,7 @@ class StartMenuSearchMixin:
                             normalized_name = re.sub(r"\s+", " ", base_name.strip().lower())
                             if normalized_name:
                                 candidates.append({"name": normalized_name, "path": full_path})
-        
+
                 self._start_menu_shortcuts_cache = candidates
                 return self._start_menu_shortcuts_cache
 

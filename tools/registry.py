@@ -5,9 +5,11 @@ Each tool has a name, description, parameter schema, and an executor function.
 The agent picks tools by name; the registry executes them and returns observations.
 """
 
+from tools.executors import exec_remember_fact
 import logging
 from typing import Any, Callable, Dict, List, Optional
 
+from tools.executors.apps import exec_type_string
 from tools.executors import (
     exec_get_system_info,
     exec_open_app, exec_close_app, exec_minimize_app,
@@ -20,18 +22,19 @@ from tools.executors import (
     exec_media_control,
     exec_network_control,
     exec_mic_control,
-    exec_send_whatsapp, exec_whatsapp_call,
-    exec_remember_fact, exec_recall_fact, exec_recall_last_command,
+    exec_send_whatsapp, exec_whatsapp_call, exec_telegram_call,
+    exec_search_memory,
     exec_final_answer,
-    exec_maximize_app, exec_restore_app, exec_focus_app, exec_hide_all_windows, exec_snap_window,
+    exec_switch_audio_output,
+    exec_maximize_app, exec_restore_app, exec_hide_all_windows, exec_snap_window,
     exec_read_clipboard, exec_write_clipboard, exec_press_shortcut,
     exec_check_performance, exec_lock_pc, exec_empty_recycle_bin, exec_take_screenshot,
     exec_show_notification, exec_set_timer, exec_open_folder, exec_open_file, exec_search_files,
-    exec_analyze_screen, exec_ask_chatgpt_visually,
+    exec_look_at_screen, exec_ask_chatgpt_visually, exec_vision_click,
     exec_analyze_ui, exec_click_ui_element, exec_type_ui_element
 )
 from tools.executors.file_system import exec_list_directory, exec_read_file, exec_write_file
-from tools.executors.obsidian import exec_search_obsidian, exec_read_obsidian_note, exec_semantic_search_obsidian
+from tools.executors.obsidian import exec_search_obsidian, exec_read_obsidian_note
 
 logger = logging.getLogger("jarvis.tools.registry")
 
@@ -87,7 +90,7 @@ class ToolRegistry:
             missing = [req for req in tool.parameters["required"] if req not in args]
             if missing:
                 return f"Error: Missing required arguments: {', '.join(missing)}. Do NOT retry this tool blindly. If you lack the required info, use final_answer to ask the user!"
-                
+
         try:
             return tool.executor(**args)
         except Exception as exc:
@@ -113,11 +116,11 @@ def build_default_registry() -> ToolRegistry:
 
     registry.register(Tool(
         name="open_app",
-        description="Open an application or website. ALWAYS use this to 'open' an app OR 'play' a specific song/video.",
+        description="Open an application (like Notepad, Chrome, Spotify) or a website (like Facebook, YouTube). ALWAYS use this to 'open' an app, 'play' a song/video, 'switch' to an app, or switch to a browser tab. DO NOT use 'open_file' for this.",
         parameters={"properties": {
-            "app": {"type": "string", "description": "App name (e.g., 'spotify', 'chrome', 'whatsapp')"},
-            "text": {"type": "string", "description": "Text to search or type. If none, pass empty string ''"},
-        }, "required": ["app", "text"]},
+            "app_name": {"type": "string", "description": "App name (e.g., 'notepad', 'chrome', 'whatsapp')"},
+            "text": {"type": "string", "description": "Text to search or type. If none, omit this parameter."},
+        }, "required": ["app_name"]},
         executor=exec_open_app,
     ))
 
@@ -230,6 +233,15 @@ def build_default_registry() -> ToolRegistry:
     ))
 
     registry.register(Tool(
+        name="switch_audio_output",
+        description="Switch the Windows audio output device (e.g. to 'headphones', 'speakers', 'earbuds').",
+        parameters={"properties": {
+            "device_name": {"type": "string", "description": "The name of the audio device to switch to"}
+        }, "required": ["device_name"]},
+        executor=exec_switch_audio_output,
+    ))
+
+    registry.register(Tool(
         name="media_control",
         description="Global play/pause/next/previous for any active media player.",
         parameters={"properties": {
@@ -269,16 +281,16 @@ def build_default_registry() -> ToolRegistry:
 
 
 
-    # The following tools are deprecated in favor of the Generalized Obsidian Pipeline
-    # registry.register(Tool(
-    #     name="remember_fact",
-    #     description="Remember a piece of information about the user for later recall.",
-    #     parameters={"properties": {
-    #         "key": {"type": "string", "description": "What to remember (e.g., 'name', 'favorite_color')"},
-    #         "value": {"type": "string", "description": "The value to remember"},
-    #     }, "required": ["key", "value"]},
-    #     executor=exec_remember_fact,
-    # ))
+    # We restore remember_fact to append to the Obsidian vault
+    registry.register(Tool(
+        name="remember_fact",
+        description="Remember a piece of information, preference, or file path (e.g., the correct path for a resume). This saves it permanently to the user's Obsidian vault.",
+        parameters={"properties": {
+            "key": {"type": "string", "description": "What to remember (e.g., 'resume_path', 'favorite_color')"},
+            "value": {"type": "string", "description": "The value or absolute path to remember"},
+        }, "required": ["key", "value"]},
+        executor=exec_remember_fact,
+    ))
 
     # registry.register(Tool(
     #     name="recall_fact",
@@ -298,11 +310,21 @@ def build_default_registry() -> ToolRegistry:
 
     registry.register(Tool(
         name="final_answer",
-        description="Give your final spoken response to the user. Use when you have the answer or completed the task.",
+        description="Give your final spoken response to the user. Use when you have the answer, completed the task, or need to ask the user a question.",
         parameters={"properties": {
             "text": {"type": "string", "description": "What to say to the user"},
         }, "required": ["text"]},
         executor=exec_final_answer,
+    ))
+
+    # Fallback alias for models that hallucinate an 'ask_user' tool
+    registry.register(Tool(
+        name="ask_user",
+        description="Ask the user a question. This is exactly the same as final_answer.",
+        parameters={"properties": {
+            "question": {"type": "string", "description": "The question to ask"}
+        }, "required": ["question"]},
+        executor=lambda question: exec_final_answer(text=question),
     ))
 
     registry.register(Tool(name="maximize_app", description="Maximize a specific application window.", parameters={"properties": {"app": {"type": "string", "description": "App name"}}, "required": ["app"]}, executor=exec_maximize_app))
@@ -316,32 +338,48 @@ def build_default_registry() -> ToolRegistry:
     registry.register(Tool(name="check_performance", description="Check system CPU, RAM, and Disk usage.", parameters={"properties": {}}, executor=exec_check_performance))
     registry.register(Tool(name="lock_pc", description="Lock the Windows workstation.", parameters={"properties": {}}, executor=exec_lock_pc))
     registry.register(Tool(name="empty_recycle_bin", description="Empty the Windows recycle bin.", parameters={"properties": {}}, executor=exec_empty_recycle_bin))
-    registry.register(Tool(name="take_screenshot", description="Save a screenshot to desktop. DO NOT use this to look at or read the screen. Use analyze_screen instead.", parameters={"properties": {}}, executor=exec_take_screenshot))
+    registry.register(Tool(name="save_screenshot_to_desktop", description="Save a screenshot to desktop. DO NOT use this to look at or read the screen. Use look_at_screen instead.", parameters={"properties": {}}, executor=exec_take_screenshot))
     registry.register(Tool(name="show_notification", description="Show a native Windows toast notification.", parameters={"properties": {"title": {"type": "string", "description": "Notification title"}, "message": {"type": "string", "description": "Notification message"}}, "required": ["title", "message"]}, executor=exec_show_notification))
     registry.register(Tool(name="set_timer", description="Set a countdown timer in seconds.", parameters={"properties": {"seconds": {"type": "integer", "description": "Seconds to wait"}, "label": {"type": "string", "description": "Timer label"}}, "required": ["seconds", "label"]}, executor=exec_set_timer))
-    registry.register(Tool(name="open_folder", description="Open a specific folder in Windows Explorer.", parameters={"properties": {"folder_path": {"type": "string", "description": "Path to the folder, or 'downloads', 'documents', etc."}}, "required": ["folder_path"]}, executor=exec_open_folder))
-    registry.register(Tool(name="open_file", description="Search for and open a specific file or document (PDF, docx, etc). You can optionally provide the folder it's in.", parameters={"properties": {"file_name": {"type": "string", "description": "Name of the file (e.g. 'bimalresume' or 'bimalresume in downloads')"}}, "required": ["file_name"]}, executor=exec_open_file))
-    registry.register(Tool(name="search_files", description="Search the file system for a specific file by name.", parameters={"properties": {"query": {"type": "string", "description": "File name to search for"}}, "required": ["query"]}, executor=exec_search_files))
+    registry.register(Tool(name="open_folder", description="Open a specific folder or directory in Windows Explorer. DO NOT use this to open files or documents.", parameters={"properties": {"folder_path": {"type": "string", "description": "Path to the folder, or 'downloads', 'documents', etc."}}, "required": ["folder_path"]}, executor=exec_open_folder))
+    registry.register(Tool(name="open_file", description="Open a document or file using its EXACT ABSOLUTE PATH. DO NOT guess the path or pass a partial name. You MUST use 'search_files' first to find the absolute path.", parameters={"properties": {"file_path": {"type": "string", "description": "The exact absolute path of the file to open (e.g., 'C:\\Users\\name\\Downloads\\resume.pdf')"}}, "required": ["file_path"]}, executor=exec_open_file))
+    registry.register(Tool(name="search_files", description="Search the file system for a file by exact or partial name. Optionally specify a path to search in.", parameters={"properties": {"query": {"type": "string", "description": "File name or partial name to search for (e.g. 'resume')"}, "path": {"type": "string", "description": "Optional path or folder name to search in (e.g. 'Downloads')"}}, "required": ["query"]}, executor=exec_search_files))
     registry.register(Tool(
         name="whatsapp_call",
-        description="Call someone on WhatsApp. Use IMMEDIATELY when user says 'call X'.",
-        parameters={
-            "properties": {
-                "contact_name": {"type": "string", "description": "Contact name exactly as spoken."},
-                "call_type": {"type": "string", "description": "'audio' (default) or 'video'."}
-            },
-            "required": ["contact_name"]
-        },
-        executor=exec_whatsapp_call
+        description="Call a contact on WhatsApp or end an ongoing call. Automatically searches and opens the app.",
+        parameters={"properties": {
+            "contact_name": {"type": "string", "description": "The name of the contact (not required for ending a call)"},
+            "call_type": {"type": "string", "description": "'audio', 'video', or 'end'"}
+        }, "required": ["call_type"]},
+        executor=exec_whatsapp_call,
     ))
 
     registry.register(Tool(
-        name="analyze_screen",
+        name="telegram_call",
+        description="Call a contact on Telegram or end an ongoing call. Automatically searches and opens the app.",
+        parameters={"properties": {
+            "contact_name": {"type": "string", "description": "The name of the contact (not required for ending a call)"},
+            "call_type": {"type": "string", "description": "'audio', 'video', or 'end'"}
+        }, "required": ["call_type"]},
+        executor=exec_telegram_call,
+    ))
+
+    registry.register(Tool(
+        name="look_at_screen",
         description="Take a screenshot of the user's screen and use a Vision AI model to answer a question about what is on the screen.",
         parameters={"properties": {
             "query": {"type": "string", "description": "What to ask the vision model about the screen (e.g., 'What app is open?', 'Read the error message')"}
         }, "required": ["query"]},
-        executor=exec_analyze_screen,
+        executor=exec_look_at_screen,
+    ))
+
+    registry.register(Tool(
+        name="vision_click",
+        description="Take a screenshot, overlay a grid, and use the Vision AI model to find and click on a specific UI element. Use this when standard UI automation fails or you don't know where a button is.",
+        parameters={"properties": {
+            "element_description": {"type": "string", "description": "What to click on (e.g., 'the WhatsApp call button', 'the heart icon')"}
+        }, "required": ["element_description"]},
+        executor=exec_vision_click,
     ))
 
     registry.register(Tool(
@@ -365,12 +403,21 @@ def build_default_registry() -> ToolRegistry:
 
     registry.register(Tool(
         name="write_file",
-        description="Write text content to a file. Overwrites the file if it exists.",
+        description="Write text content to a text file on the hard drive. Overwrites the file if it exists. DO NOT use this to write into an application window (like Notepad); use 'type_text' for that instead.",
         parameters={"properties": {
             "file_path": {"type": "string", "description": "Absolute or relative file path"},
             "content": {"type": "string", "description": "The exact text content to write to the file"}
         }, "required": ["file_path", "content"]},
         executor=exec_write_file,
+    ))
+
+    registry.register(Tool(
+        name="type_text",
+        description="Type text into whatever application is currently focused and active (e.g. into Notepad, Word, or Chrome). Use this INSTEAD of 'write_file' if you are trying to write into an open application.",
+        parameters={"properties": {
+            "text": {"type": "string", "description": "The exact text to type"}
+        }, "required": ["text"]},
+        executor=exec_type_string,
     ))
 
     registry.register(Tool(
@@ -383,12 +430,12 @@ def build_default_registry() -> ToolRegistry:
     ))
 
     registry.register(Tool(
-        name="semantic_search_obsidian",
-        description="Search all markdown files in the user's Obsidian vault using AI vector search. Use this for conceptual queries (e.g. 'what hobby was I talking about', 'who did I meet in London'). It finds meaning, not just exact words.",
+        name="search_memory",
+        description="Search BOTH your conversational memory and the user's Obsidian notes using AI vector search simultaneously. ALWAYS use this whenever you need to recall past conversations, or find personal information about the user, their family, their friends, or their preferences.",
         parameters={"properties": {
             "query": {"type": "string", "description": "The concept or meaning to search for"}
         }, "required": ["query"]},
-        executor=exec_semantic_search_obsidian,
+        executor=exec_search_memory,
     ))
 
     registry.register(Tool(

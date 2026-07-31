@@ -1,22 +1,8 @@
-import os
-import re
-import json
-import time
-import queue
-import shutil
-import struct
-import tempfile
-import threading
-import subprocess
 import webbrowser
 from urllib.parse import quote_plus
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-import requests
-import difflib
+from typing import Any, Dict
 
 from client.config import *
-from client.ui import StatusHud
 
 class ActionExecutionMixin:
                 def _sanitize_text(self, text: str) -> str:
@@ -28,7 +14,7 @@ class ActionExecutionMixin:
 
                 def execute_pc_action(self, action: Dict[str, Any]) -> None:
                     action_name = str(action.get("action", "")).lower()
-            
+
                     if action_name == "open_website":
                         url = str(action.get("url", "")).strip()
                         if url:
@@ -36,7 +22,7 @@ class ActionExecutionMixin:
                             return
                         self.speak("Website URL missing")
                         return
-            
+
                     if action_name == "open_app":
                         app_name = str(action.get("app", "")).strip()
                         raw_text = action.get("text")
@@ -52,7 +38,7 @@ class ActionExecutionMixin:
                             return
                         self.speak("App name missing")
                         return
-            
+
                     if action_name == "close_app":
                         app_name = str(action.get("app", "")).strip()
                         if app_name:
@@ -76,7 +62,7 @@ class ActionExecutionMixin:
                             return
                         self.speak("App name missing")
                         return
-            
+
                     if action_name == "send_whatsapp":
                         phone = str(action.get("phone", "")).strip()
                         message = self._sanitize_text(str(action.get("message", "")).strip())
@@ -88,7 +74,17 @@ class ActionExecutionMixin:
                             return
                         self.speak("WhatsApp phone number is missing.")
                         return
-            
+
+                    if action_name == "type_string":
+                        import pyautogui
+                        text_to_type = str(action.get("text", ""))
+                        if text_to_type:
+                            # Use a small interval to make typing look natural but fast
+                            pyautogui.write(text_to_type, interval=0.01)
+                            return "Typed text successfully."
+                        self.speak("No text to type.")
+                        return
+
                     if action_name == "spotify_like":
                         result = self._spotify_like_current_song()
                         msg = action.get("response") or result
@@ -97,7 +93,7 @@ class ActionExecutionMixin:
                         if result and result != action.get("response"):
                             print(result)
                         return
-            
+
                     agentic_methods = {
                         "maximize_app": "_maximize_app",
                         "restore_app": "_restore_app",
@@ -114,13 +110,15 @@ class ActionExecutionMixin:
                         "show_notification": "_show_notification",
                         "set_timer": "_set_timer",
                         "open_folder": "_open_folder",
+                        "open_file": "_open_file",
                         "search_files": "_search_files",
-                        "whatsapp_call": "_whatsapp_call"
+                        "whatsapp_call": "_whatsapp_call",
+                        "telegram_call": "_telegram_call"
                     }
                     if action_name in agentic_methods:
                         method_name = agentic_methods[action_name]
                         method = getattr(self, method_name, lambda *args, **kwargs: "Feature not available")
-                        
+
                         kwargs = {}
                         if action_name in ["maximize_app", "restore_app", "focus_app"]:
                             kwargs["app_name"] = str(action.get("app", "")).strip()
@@ -139,12 +137,14 @@ class ActionExecutionMixin:
                             kwargs["label"] = self._sanitize_text(str(action.get("label", "")))
                         elif action_name == "open_folder":
                             kwargs["folder_path"] = str(action.get("folder_path", "")).strip()
+                        elif action_name == "open_file":
+                            kwargs["file_path"] = str(action.get("file_path", "")).strip()
                         elif action_name == "search_files":
                             kwargs["query"] = self._sanitize_text(str(action.get("query", "")))
-                        elif action_name == "whatsapp_call":
+                        elif action_name in ["whatsapp_call", "telegram_call"]:
                             kwargs["contact_name"] = self._sanitize_text(str(action.get("contact_name", "")))
                             kwargs["call_type"] = str(action.get("call_type", "audio")).strip()
-                        
+
                         result = method(**kwargs)
                         if result and not self._is_quiet_success_message(result):
                             self.speak(result)
@@ -156,7 +156,7 @@ class ActionExecutionMixin:
                         if not self._is_quiet_success_message(message):
                             self.speak(message)
                         return
-            
+
                     # PC control actions are executed on backend and returned as type_text.
                     message = str(action.get("response") or "Done")
                     if not self._is_quiet_success_message(message):

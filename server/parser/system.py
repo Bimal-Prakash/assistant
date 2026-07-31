@@ -1,5 +1,5 @@
 import re
-from typing import Optional, Dict, Any
+from typing import Optional, Any
 from core.schemas import ActionResponse
 
 def _extract_volume_brightness_scope(text: str) -> Optional[str]:

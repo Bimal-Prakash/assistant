@@ -1,4 +1,3 @@
-import re
 from typing import Dict, Any
 from core.config import ALLOWED_ACTIONS
 from core.schemas import ActionResponse
@@ -241,7 +240,7 @@ def _normalize_action(action_obj: Dict[str, Any], default_target: str = "android
         "minimize_app", "maximize_app", "restore_app", "focus_app", "hide_all_windows",
         "snap_window", "read_clipboard", "write_clipboard", "press_shortcut",
         "check_performance", "lock_pc", "empty_recycle_bin", "take_screenshot",
-        "show_notification", "set_timer", "open_folder", "search_files", "whatsapp_call",
+        "show_notification", "set_timer", "open_folder", "open_file", "search_files", "whatsapp_call",
         "spotify_like"
     }
 
@@ -259,6 +258,7 @@ def _normalize_action(action_obj: Dict[str, Any], default_target: str = "android
             seconds=action_obj.get("seconds"),
             label=action_obj.get("label"),
             folder_path=action_obj.get("folder_path"),
+            file_path=action_obj.get("file_path"),
             query=action_obj.get("query"),
             contact_name=action_obj.get("contact_name"),
             call_type=action_obj.get("call_type"),

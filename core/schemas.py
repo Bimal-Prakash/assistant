@@ -20,7 +20,7 @@ class ActionResponse(BaseModel):
     type: Optional[str] = None
     state: Optional[str] = None
     target: Optional[str] = None
-    
+
     # New agentic fields
     direction: Optional[str] = None
     shortcut: Optional[str] = None
@@ -28,6 +28,7 @@ class ActionResponse(BaseModel):
     seconds: Optional[int] = None
     label: Optional[str] = None
     folder_path: Optional[str] = None
+    file_path: Optional[str] = None
     query: Optional[str] = None
     contact_name: Optional[str] = None
     call_type: Optional[str] = None

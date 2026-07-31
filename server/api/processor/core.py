@@ -1,7 +1,5 @@
 import logging
-import re
 from core.schemas import ActionResponse
-from server.parser.normalizer import _normalize_action
 
 logger = logging.getLogger("jarvis.server.api.processor.core")
 
@@ -16,7 +14,7 @@ class CoreProcessorMixin:
 
         # Check for media controls (broad match to prevent LLM hallucination)
         cleaned_lower = self.cleaned.lower().strip()
-        
+
         play_pause_phrases = ["play", "pause", "play pause", "resume", "stop", "stop music", "pause music", "play music", "pause the music", "play the music", "stop the music", "pause it", "play it", "stop it"]
         next_phrases = ["next", "next track", "skip", "next song", "skip song"]
         prev_phrases = ["previous", "previous track", "go back", "last song", "previous song"]
@@ -47,6 +45,6 @@ class CoreProcessorMixin:
         response = self.handle_llm_generation()
         if response:
             return response
-        
+
         # Fallback
         return self._finalize(ActionResponse(action="type_text", text="Command could not be processed.", target=self.default_target))

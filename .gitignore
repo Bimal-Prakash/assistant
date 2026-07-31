@@ -47,3 +47,13 @@ Thumbs.db
 # Miscellaneous
 .cache/
 .pytest_cache/
+core/search_cache.json
+
+# Scratchpad / Local Tests
+test_*.py
+
+# Additional Coverage / Stray files
+.coverage
+coverage_report.txt
+0.19.3
+user_memory.txt

@@ -1,10 +1,7 @@
 import json
 import logging
-import os
 import re
-import sqlite3
-import time
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 logger = logging.getLogger("jarvis.memory")
 
@@ -12,9 +9,9 @@ class MemoryReadMixin:
         def get_last_opened_app(self, client: str) -> Optional[str]:
             if not self._ensure_ready():
                 return None
-    
+
             client_key = (client or "unknown").strip().lower() or "unknown"
-    
+
             try:
                 if False and self._backend == "postgres":
                     with self._connect_postgres() as conn:
@@ -44,7 +41,7 @@ class MemoryReadMixin:
                             (client_key,),
                         )
                         rows = cur.fetchall()
-    
+
                 for row in rows:
                     raw = str(row[0] if isinstance(row, (list, tuple)) else row)
                     try:
@@ -66,9 +63,9 @@ class MemoryReadMixin:
         def get_last_user_text(self, client: str) -> Optional[str]:
             if not self._ensure_ready():
                 return None
-    
+
             client_key = (client or "unknown").strip().lower() or "unknown"
-    
+
             try:
                 with self._connect_sqlite() as conn:
                     cur = conn.cursor()
@@ -94,15 +91,15 @@ class MemoryReadMixin:
         def get_fact(self, client: str, fact_key: str) -> Optional[str]:
             if not self._ensure_ready():
                 return None
-    
+
             client_keys = [(client or "unknown").strip().lower() or "unknown"]
             if "pc" not in client_keys:
                 client_keys.append("pc")
-    
+
             key = (fact_key or "").strip().lower()
             if not key:
                 return None
-    
+
             try:
                 with self._connect_sqlite() as conn:
                     cur = conn.cursor()
@@ -129,11 +126,11 @@ class MemoryReadMixin:
         def get_last_media_query(self, client: str) -> Optional[str]:
             if not self._ensure_ready():
                 return None
-    
+
             client_keys = [(client or "unknown").strip().lower() or "unknown"]
             if "pc" not in client_keys:
                 client_keys.append("pc")
-    
+
             try:
                 with self._connect_sqlite() as conn:
                     cur = conn.cursor()
@@ -149,7 +146,7 @@ class MemoryReadMixin:
                         tuple(client_keys),
                     )
                     rows = cur.fetchall()
-    
+
                 for row in rows:
                     raw = str(row[0] if isinstance(row, (list, tuple)) else row)
                     try:
@@ -158,7 +155,7 @@ class MemoryReadMixin:
                         continue
                     if not isinstance(action_obj, dict):
                         continue
-    
+
                     action = str(action_obj.get("action", "")).strip().lower()
                     app = str(action_obj.get("app", "")).strip().lower()
                     text = str(action_obj.get("text", "")).strip()
@@ -176,7 +173,7 @@ class MemoryReadMixin:
                         "track",
                     }:
                         continue
-    
+
                     if action == "open_app" and app == "spotify" and text:
                         return text
                     if action == "open_website" and "youtube.com/results" in url:
@@ -192,9 +189,9 @@ class MemoryReadMixin:
         def build_context(self, client: str) -> str:
             if not self._ensure_ready():
                 return ""
-    
+
             client_key = (client or "unknown").strip().lower() or "unknown"
-    
+
             try:
                 if False and self._backend == "postgres":
                     with self._connect_postgres() as conn:
@@ -210,7 +207,7 @@ class MemoryReadMixin:
                                 (client_key, self.fact_limit),
                             )
                             facts = cur.fetchall()
-    
+
                             cur.execute(
                                 """
                                 SELECT user_text, action_json::text
@@ -236,7 +233,7 @@ class MemoryReadMixin:
                             (client_key, self.fact_limit),
                         )
                         facts = cur.fetchall()
-    
+
                         cur.execute(
                             """
                             SELECT user_text, action_json
@@ -248,24 +245,24 @@ class MemoryReadMixin:
                             (client_key, self.history_limit),
                         )
                         history = cur.fetchall()
-    
+
                 self._last_error = None
             except Exception as exc:
                 self._mark_not_ready(exc)
                 logger.warning("Failed to load memory context: %s", exc)
                 return ""
-    
+
             lines: List[str] = []
             if facts:
                 lines.append("Known user facts:")
                 for fact_key, fact_value in facts:
                     lines.append(f"- {fact_key}: {fact_value}")
-    
+
             if history:
                 lines.append("Recent interactions (latest first):")
                 for user_text, action_json in history:
                     lines.append(f"- User: {user_text}")
                     lines.append(f"  Action: {action_json}")
-    
+
             return "\n".join(lines).strip()
 

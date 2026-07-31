@@ -1,18 +1,5 @@
-import os
-import re
-import json
-import time
-import queue
-import shutil
-import struct
-import tempfile
-import threading
 import subprocess
-from urllib.parse import quote_plus
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-import requests
-import difflib
+from typing import Optional
 
 from client.config import *
 
@@ -69,7 +56,7 @@ class WindowsSTTMixin:
         }
         """
                 ps_script = ps_script.replace("__TIMEOUT_SECONDS__", str(timeout_seconds))
-        
+
                 try:
                     proc = subprocess.run(
                         ["powershell", "-NoProfile", "-STA", "-Command", ps_script],
@@ -81,7 +68,7 @@ class WindowsSTTMixin:
                     if not TERMINAL_MINIMAL:
                         print(f"[windows stt error] {exc}")
                     return None
-        
+
                 output = (proc.stdout or "").strip()
                 if not output:
                     if proc.returncode != 0 and not TERMINAL_MINIMAL:
@@ -89,16 +76,16 @@ class WindowsSTTMixin:
                         if stderr_text:
                             print(f"[windows stt error] {stderr_text}")
                     return ""
-        
+
                 line = output.splitlines()[-1].strip()
                 if not line:
                     return ""
-        
+
                 if line.startswith("ERROR||"):
                     if not TERMINAL_MINIMAL:
                         print(f"[windows stt error] {line.split('||', 1)[1].strip()}")
                     return ""
-        
+
                 heard_text = line
                 confidence = None
                 if "||" in line:
@@ -108,11 +95,11 @@ class WindowsSTTMixin:
                         confidence = float(confidence_raw.strip())
                     except Exception:
                         confidence = None
-        
+
                 if confidence is not None:
                     self.last_recognition_confidence = confidence
                     if confidence < WINDOWS_STT_MIN_CONFIDENCE:
                         return ""
-        
+
                 return heard_text
 

@@ -25,7 +25,7 @@ class AsyncMCPClient:
             read, write = await self._exit_stack.enter_async_context(stdio_client(self.server_parameters))
             self.session = await self._exit_stack.enter_async_context(ClientSession(read, write))
             await self.session.initialize()
-            
+
             tools_response = await self.session.list_tools()
             self.tools = [{"name": t.name, "description": t.description, "inputSchema": t.inputSchema} for t in tools_response.tools]
             logger.info("MCP Server connected. Loaded %d tools.", len(self.tools))
@@ -81,7 +81,7 @@ class BackgroundMCPManager:
     def call_tool(self, name: str, args: Dict[str, Any]) -> str:
         if not self.client.session:
             return "MCP Client not connected"
-        
+
         future = asyncio.run_coroutine_threadsafe(self.client.call_tool(name, args), self._loop)
         try:
             return future.result(timeout=10.0) # 10 sec timeout for tool execution
@@ -112,16 +112,16 @@ def get_all_mcp_tools() -> List[Dict[str, Any]]:
 def call_mcp_tool(full_tool_name: str, args: Dict[str, Any]) -> str:
     if not full_tool_name.startswith("mcp_"):
         return "Not an MCP tool"
-    
+
     parts = full_tool_name.split("_", 2)
     if len(parts) < 3:
         return "Invalid MCP tool name"
-        
+
     server_name = parts[1]
     tool_name = parts[2]
-    
+
     manager = ACTIVE_MCP_SERVERS.get(server_name)
     if not manager:
         return f"MCP server '{server_name}' not found or not running"
-        
+
     return manager.call_tool(tool_name, args)

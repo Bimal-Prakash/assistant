@@ -1,18 +1,11 @@
 import os
-import re
 import json
 import time
 import queue
 import shutil
-import struct
-import tempfile
 import threading
-import subprocess
-from urllib.parse import quote_plus
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 import requests
-import difflib
 
 from client.config import *
 from client.ui import StatusHud
@@ -46,7 +39,7 @@ class MainLoopMixin:
                     if os.path.isfile(edge_tts_candidate):
                         self.edge_tts_cli = edge_tts_candidate
                 self._init_tts_engine()
-        
+
 
                 self._start_apps_cache: Optional[List[Dict[str, str]]] = None
                 self._start_apps_cache_ts = 0.0
@@ -91,6 +84,43 @@ class MainLoopMixin:
                 self._worker_thread = threading.Thread(target=self._command_worker_loop, daemon=True)
                 self._worker_thread.start()
 
+                self._proactive_thread = threading.Thread(target=self._notification_worker_loop, daemon=True)
+                self._proactive_thread.start()
+
+                try:
+                    from client.tray_icon import JarvisTrayIcon
+                    self.tray_icon = JarvisTrayIcon(
+                        backend_url=self.backend_url,
+                        on_manual_trigger=self._on_tray_manual_trigger,
+                        on_exit=self._on_tray_exit
+                    )
+                    self.tray_icon.start()
+                except ImportError:
+                    self.tray_icon = None
+
+            def _on_tray_manual_trigger(self):
+                # We can simulate a manual trigger by injecting a command or updating HUD
+                self.speak("I am ready.")
+                self._update_hud(intent="manual", action="listening")
+
+            def _on_tray_exit(self):
+                import sys
+                sys.exit(0)
+
+            def _notification_worker_loop(self) -> None:
+                while True:
+                    time.sleep(5)
+                    try:
+                        response = requests.get(f"{self.backend_url}/notifications", timeout=2)
+                        if response.status_code == 200:
+                            data = response.json()
+                            action = data.get("action", "none")
+                            if action != "none" and data.get("text"):
+                                self.speak(data["text"])
+                                self._update_hud(intent="proactive", action=data["text"])
+                    except Exception:
+                        pass
+
             def _command_worker_loop(self) -> None:
                 while True:
                     cmd_raw, conf = self.command_queue.get()
@@ -127,7 +157,7 @@ class MainLoopMixin:
                 self._update_hud(intent="startup", action="always listening")
                 if not self._check_backend_status(retries=1, delay_seconds=0.2):
                     self.speak("Backend or Ollama is not reachable. I will run in local-only mode until it is back.")
-        
+
                 try:
                     while True:
                         try:
@@ -143,10 +173,10 @@ class MainLoopMixin:
                                 raw = input("Text mode > ").strip()
                             else:
                                 raw = self._capture_voice_command()
-        
+
                             if not raw:
                                 continue
-        
+
                             normalized = self._normalize_text_command(raw)
                             if self._is_unknown_transcript(normalized):
                                 self.speak("I couldn't catch that. Please repeat.")
@@ -154,13 +184,13 @@ class MainLoopMixin:
                             if normalized in {"exit", "quit", "stop"}:
                                 self.speak("Stopping Jarvis")
                                 break
-        
+
                             if normalized in {"cancel", "abort", "nevermind", "ignore"}:
                                 with self.command_queue.mutex:
                                     self.command_queue.queue.clear()
                                 self.speak("Cancelled pending actions.")
                                 continue
-        
+
                             if self.input_mode == "text" and normalized in VOICE_MODE_COMMANDS:
                                 if self.windows_native_text_mode:
                                     self.speak("Windows speech mode is active. Staying in text mode.")
@@ -169,23 +199,27 @@ class MainLoopMixin:
                                     self.speak("Switched to voice mode")
                                     self._update_hud(intent="mode", action="voice")
                                 continue
-        
+
                             if normalized in TEXT_MODE_COMMANDS:
                                 self.input_mode = "text"
                                 self.speak("Switched to text mode")
                                 self._update_hud(intent="mode", action="text")
                                 continue
-        
+
                             if self._handle_alias_confirmation(normalized):
                                 continue
-        
+
                             if self._handle_action_confirmation(normalized):
                                 continue
-        
+
                             self._update_hud(heard=raw, intent="command")
-        
+
                             # Queue the command for the background worker instead of blocking or naive threading
-                            self.command_queue.put((raw, self.last_recognition_confidence))
+                            import re
+                            parts = re.split(r"(?i)\s+and then\s+", raw)
+                            for part in parts:
+                                if part.strip():
+                                    self.command_queue.put((part.strip(), self.last_recognition_confidence))
                         except KeyboardInterrupt:
                             raise
                 except KeyboardInterrupt:

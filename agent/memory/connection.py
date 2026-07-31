@@ -1,10 +1,8 @@
-import json
 import logging
 import os
-import re
 import sqlite3
 import time
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 logger = logging.getLogger("jarvis.memory")
 
@@ -13,18 +11,18 @@ class MemoryConnectionMixin:
             self.database_url = (database_url or "").strip()
             self.history_limit = max(1, history_limit)
             self.fact_limit = max(1, fact_limit)
-    
+
             self.sqlite_path = os.getenv(
                 "JARVIS_MEMORY_SQLITE_PATH",
                 os.path.join(os.path.dirname(os.path.abspath(__file__)), "jarvis_memory.sqlite3"),
             )
-    
+
             self._ready = False
             self._last_error: Optional[str] = None
             self._last_connect_attempt_ts = 0.0
             self._retry_interval_seconds = 5.0
             self._backend = "none"
-    
+
             if self._ensure_sqlite_ready(force=True):
                 self._backend = "sqlite"
             else:
@@ -65,7 +63,7 @@ class MemoryConnectionMixin:
             if not force and (now - self._last_connect_attempt_ts) < self._retry_interval_seconds:
                 return False
             self._last_connect_attempt_ts = now
-    
+
             try:
                 with self._connect_sqlite() as conn:
                     cur = conn.cursor()
@@ -106,6 +104,6 @@ class MemoryConnectionMixin:
                 if self._ready:
                     return True
                 return self._ensure_sqlite_ready(force=False)
-    
+
             return self._ensure_sqlite_ready(force=False)
 

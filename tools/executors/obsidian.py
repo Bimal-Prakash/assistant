@@ -32,21 +32,21 @@ def exec_search_obsidian(query: str) -> str:
 
     query_lower = query.lower()
     matches = []
-    
+
     # Recursively find all markdown files
     search_pattern = os.path.join(vault_path, "**", "*.md")
     for file_path in glob.glob(search_pattern, recursive=True):
         try:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
-                
+
             if query_lower in content.lower():
                 # Extract a snippet around the first match
                 idx = content.lower().find(query_lower)
                 start = max(0, idx - 40)
                 end = min(len(content), idx + len(query) + 40)
                 snippet = content[start:end].replace('\n', ' ').strip()
-                
+
                 rel_path = os.path.relpath(file_path, vault_path)
                 matches.append(f"- **{rel_path}**: \"...{snippet}...\"")
         except Exception as e:
@@ -61,7 +61,7 @@ def exec_search_obsidian(query: str) -> str:
     response = "Found matches in the following notes:\n" + "\n".join(matches[:max_results])
     if len(matches) > max_results:
         response += f"\n...and {len(matches) - max_results} more files."
-        
+
     return response
 
 def exec_read_obsidian_note(note_name: str) -> str:
@@ -82,7 +82,7 @@ def exec_read_obsidian_note(note_name: str) -> str:
     # Search for the file in the vault
     search_pattern = os.path.join(vault_path, "**", "*.md")
     matched_file = None
-    
+
     for file_path in glob.glob(search_pattern, recursive=True):
         if os.path.basename(file_path).lower() == note_name.lower():
             matched_file = file_path
@@ -94,13 +94,13 @@ def exec_read_obsidian_note(note_name: str) -> str:
     try:
         with open(matched_file, 'r', encoding='utf-8', errors='ignore') as f:
             content = f.read()
-            
+
         rel_path = os.path.relpath(matched_file, vault_path)
         # Limit the content length to avoid overflowing the LLM context
         max_length = 3000
         if len(content) > max_length:
             content = content[:max_length] + "\n\n...[Content truncated for length]..."
-            
+
         return f"Content of '{rel_path}':\n\n{content}"
     except Exception as e:
         logger.exception(f"Failed to read note {matched_file}")
@@ -118,11 +118,31 @@ def exec_semantic_search_obsidian(query: str) -> str:
         from chromadb.utils.embedding_functions import OllamaEmbeddingFunction
     except ImportError:
         return "Error: chromadb is not installed."
-        
+
+    vault_path = get_vault_path()
     db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "chroma_db")
-    if not os.path.exists(db_path):
-        return "Error: Vector database not found. Please run scripts/index_obsidian.py first."
-        
+    db_file = os.path.join(db_path, "chroma.sqlite3")
+
+    # Check if we need to auto-index
+    needs_update = False
+    if not os.path.exists(db_file):
+        needs_update = True
+    elif vault_path and os.path.exists(vault_path):
+        import glob
+        newest_md = max(glob.iglob(os.path.join(vault_path, "**/*.md"), recursive=True), key=os.path.getmtime, default=None)
+        if newest_md and os.path.getmtime(newest_md) > os.path.getmtime(db_file):
+            needs_update = True
+
+    if needs_update:
+        logger.info("Obsidian vault changes detected. Auto-indexing...")
+        import subprocess
+        script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "scripts", "index_obsidian.py")
+        try:
+            subprocess.run(["python", script_path], check=True)
+        except Exception as e:
+            logger.error(f"Failed to auto-index Obsidian vault: {e}")
+            return f"Error: Failed to index Obsidian vault. Database may be out of date. {e}"
+
     try:
         client = chromadb.PersistentClient(path=db_path)
         from core.config import OLLAMA_API_URL
@@ -131,28 +151,28 @@ def exec_semantic_search_obsidian(query: str) -> str:
             model_name="nomic-embed-text",
             url=f"{base_url}/api/embeddings"
         )
-        
+
         collection = client.get_collection(name="obsidian_notes", embedding_function=ef)
-        
+
         results = collection.query(
             query_texts=[query],
-            n_results=3
+            n_results=4
         )
-        
+
         if not results["documents"] or not results["documents"][0]:
             return f"No semantic matches found for '{query}'."
-            
+
         output = [f"Semantic Search Results for '{query}':\n"]
-        
+
         for i, doc in enumerate(results["documents"][0]):
             metadata = results["metadatas"][0][i]
             filename = metadata.get("filename", "Unknown file")
             output.append(f"--- From {filename} ---")
             output.append(doc)
             output.append("")
-            
+
         return "\n".join(output)
-        
+
     except Exception as e:
         logger.exception("Failed semantic search")
         return f"Error during semantic search: {e}"

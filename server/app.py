@@ -19,8 +19,16 @@ async def lifespan(app: FastAPI):
     logger.info("Booting MCP Servers...")
     for server_name, config in MCP_SERVERS.items():
         start_mcp_server(server_name, config["command"], config["args"])
+
+    from server.proactive_daemon import ProactiveDaemon
+    daemon = ProactiveDaemon(interval_seconds=3600)
+    daemon.start()
+
     yield
+
     logger.info("Shutting down Jarvis...")
+    daemon.stop()
+    daemon.join(timeout=2.0)
 
 app = FastAPI(title="Jarvis Assistant API", version="1.0.0", lifespan=lifespan)
 

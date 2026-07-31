@@ -19,3 +19,5 @@ pillow
 uiautomation
 chromadb
 spacy
+pystray>=0.19.3
+PyGetWindow

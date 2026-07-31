@@ -1,67 +1,68 @@
 import subprocess
-
-def _wifi_interface_name() -> str:
-    result = subprocess.run(
-        ["netsh", "interface", "show", "interface"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    output = (result.stdout or "").lower()
-    for line in output.splitlines():
-        if "wi-fi" in line or "wifi" in line or "wireless" in line:
-            parts = line.split()
-            if parts:
-                return " ".join(parts[3:]) if len(parts) > 3 else parts[-1]
-    return "Wi-Fi"
+import time
+# pyrefly: ignore [missing-import]
+import uiautomation as auto
 
 def network_control(network_type: str, state: str) -> str:
     network_type = network_type.lower().strip()
     state = state.lower().strip()
+    desired_state = 1 if state == "on" else 0
 
-    if network_type == "wifi":
-        if state == "open":
+    try:
+        if network_type == "wifi":
             subprocess.Popen(["cmd", "/c", "start", "ms-settings:network-wifi"], shell=False)
-            return "Opened Wi-Fi settings."
-        admin_state = "enabled" if state == "on" else "disabled"
-        iface = _wifi_interface_name()
-        command = ["netsh", "interface", "set", "interface", iface, f"admin={admin_state}"]
-        result = subprocess.run(command, capture_output=True, text=True, check=False)
-        if result.returncode == 0:
-            return f"Wi-Fi turned {state}"
-        error_text = (result.stderr or result.stdout or "Failed to toggle Wi-Fi").strip()
-        if "requires elevation" in error_text.lower() or "run as administrator" in error_text.lower():
-            subprocess.Popen(["cmd", "/c", "start", "ms-settings:network-wifi"], shell=False)
-            return "Successfully opened Wi-Fi settings so the user can toggle it manually."
-        raise RuntimeError(error_text)
+            target_name = "Wi-Fi"
+            search_terms = ["Wi-Fi", "WiFi"]
+        elif network_type == "bluetooth":
+            subprocess.Popen(["cmd", "/c", "start", "ms-settings:bluetooth"], shell=False)
+            target_name = "Bluetooth"
+            search_terms = ["Bluetooth"]
+        else:
+            raise ValueError("Unsupported network type")
 
-    if network_type == "bluetooth":
-        if state in {"on", "off"}:
-            desired = "On" if state == "on" else "Off"
-            ps_script = (
-                "Add-Type -AssemblyName System.Runtime.WindowsRuntime; "
-                "$null = [Windows.Devices.Radios.Radio,Windows.Devices.Radios,ContentType=WindowsRuntime]; "
-                "$null = [Windows.Devices.Radios.RadioAccessStatus,Windows.Devices.Radios,ContentType=WindowsRuntime]; "
-                "$null = [Windows.Devices.Radios.RadioState,Windows.Devices.Radios,ContentType=WindowsRuntime]; "
-                "$access = [Windows.Devices.Radios.Radio]::RequestAccessAsync().AsTask().GetAwaiter().GetResult(); "
-                "if ($access -ne [Windows.Devices.Radios.RadioAccessStatus]::Allowed) { exit 5 }; "
-                "$radios = [Windows.Devices.Radios.Radio]::GetRadiosAsync().AsTask().GetAwaiter().GetResult(); "
-                "$bt = $radios | Where-Object { $_.Kind -eq [Windows.Devices.Radios.RadioKind]::Bluetooth } | Select-Object -First 1; "
-                "if ($null -eq $bt) { exit 6 }; "
-                f"$result = $bt.SetStateAsync([Windows.Devices.Radios.RadioState]::{desired}).AsTask().GetAwaiter().GetResult(); "
-                "if ($result -ne [Windows.Devices.Radios.RadioAccessStatus]::Allowed) { exit 7 }; "
-                "exit 0"
-            )
-            result = subprocess.run(
-                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if result.returncode == 0:
-                return f"Bluetooth turned {state}"
+        time.sleep(1.5)
+        
+        window = auto.WindowControl(ClassName="ApplicationFrameWindow", Name="Settings")
+        if not window.Exists(3, 1):
+            return f"Opened Settings, but could not auto-toggle {target_name} (window not found)."
 
-        subprocess.Popen(["cmd", "/c", "start", "ms-settings:bluetooth"], shell=False)
-        return "Successfully opened Bluetooth settings so the user can toggle it manually."
+        toggle = None
+        
+        # Traverse the DOM to find the exact toggle button
+        def find_toggle(ctrl):
+            for child in ctrl.GetChildren():
+                if any(term in child.Name for term in search_terms) and "toggle" in child.ClassName.lower():
+                    return child
+                res = find_toggle(child)
+                if res: return res
+            return None
+            
+        toggle = find_toggle(window)
 
-    raise ValueError("Unsupported network type")
+        if not toggle:
+            # Fallback: Just grab the first toggle switch on the screen
+            first_toggle = window.Control(ClassName="ToggleSwitch")
+            if first_toggle.Exists(0.5, 0.5):
+                toggle = first_toggle
+
+        if toggle:
+            try:
+                current = toggle.CurrentToggleState()
+                # Only click if we need to change state
+                if current != desired_state:
+                    toggle.Click(simulateMove=False, waitTime=0.1)
+                
+                # Cleanup window
+                if window.Exists(1, 1):
+                    window.GetWindowPattern().Close()
+                    
+                return f"{target_name} turned {state}"
+            except Exception as e:
+                if window.Exists(1, 1):
+                    window.GetWindowPattern().Close()
+                return f"Failed to click {target_name} toggle: {e}"
+
+        return f"Successfully opened {target_name} settings, please toggle manually."
+
+    except Exception as e:
+        return f"Error toggling {network_type}: {e}"

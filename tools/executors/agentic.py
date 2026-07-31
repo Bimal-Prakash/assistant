@@ -33,7 +33,7 @@ def exec_lock_pc() -> str:
 def exec_empty_recycle_bin() -> str:
     return json.dumps({"_client_action": "empty_recycle_bin"})
 
-def exec_take_screenshot() -> str:
+def exec_take_screenshot(**kwargs) -> str:
     return json.dumps({"_client_action": "take_screenshot"})
 
 def exec_show_notification(title: str, message: str) -> str:
@@ -45,12 +45,12 @@ def exec_set_timer(seconds: int, label: str = "") -> str:
 def exec_open_folder(folder_path: str) -> str:
     return json.dumps({"_client_action": "open_folder", "folder_path": folder_path.strip()})
 
-def exec_open_file(file_name: str) -> str:
-    # Use the same open_folder backend client action since it will be upgraded to handle files
-    return json.dumps({"_client_action": "open_folder", "folder_path": file_name.strip()})
+def exec_open_file(file_path: str = None, file_name: str = None) -> str:
+    path = file_path or file_name
+    if not path:
+        return "Error: You must provide file_path."
+    return json.dumps({"_client_action": "open_file", "file_path": path.strip()})
 
-def exec_search_files(query: str) -> str:
-    return json.dumps({"_client_action": "search_files", "query": query.strip()})
 
 def exec_whatsapp_call(contact_name: str, call_type: str = "audio") -> str:
     contact_name = (contact_name or "").strip()

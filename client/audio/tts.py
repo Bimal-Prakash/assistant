@@ -1,18 +1,7 @@
 import os
-import re
-import json
-import time
-import queue
-import shutil
-import struct
 import tempfile
 import threading
 import subprocess
-from urllib.parse import quote_plus
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-import requests
-import difflib
 
 from client.config import *
 
@@ -34,7 +23,7 @@ class TTSMixin:
         def _init_tts_engine(self) -> None:
             # Default offline-first mode. Use edge only if explicitly requested.
             preferred = os.getenv("JARVIS_TTS_ENGINE", "pyttsx3").strip().lower()
-    
+
             if preferred in {"pyttsx3", "auto"} and pyttsx3:
                 try:
                     self.tts = pyttsx3.init()
@@ -42,17 +31,17 @@ class TTSMixin:
                     return
                 except Exception:
                     self.tts = None
-    
+
             if preferred in {"edge", "edge-tts"} and self.edge_tts_cli:
                 self.tts_mode = "edge"
                 return
-    
+
             self.tts_mode = "none"
 
         def _speak_with_edge_tts(self, text: str) -> bool:
             if not self.edge_tts_cli:
                 return False
-    
+
             fd, wav_path = tempfile.mkstemp(prefix="jarvis_tts_", suffix=".wav")
             os.close(fd)
             try:
@@ -103,4 +92,18 @@ class TTSMixin:
             self._update_hud(action=text)
             # Fire-and-forget: TTS runs in background so actions start immediately
             threading.Thread(target=self._speak_blocking, args=(text,), daemon=True).start()
+
+        def stop_speaking(self) -> None:
+            """Instantly halts any ongoing TTS playback."""
+            if self.tts_mode == "edge" and winsound is not None:
+                try:
+                    winsound.PlaySound(None, winsound.SND_PURGE)
+                except Exception:
+                    pass
+            if self.tts_mode == "pyttsx3" and self.tts:
+                try:
+                    self.tts.stop()
+                except Exception:
+                    pass
+
 

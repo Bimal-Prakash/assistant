@@ -1,10 +1,6 @@
 import json
 import logging
-import os
-import re
-import sqlite3
-import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 logger = logging.getLogger("jarvis.memory")
 
@@ -12,14 +8,14 @@ class MemoryWriteMixin:
         def remember_interaction(self, client: str, user_text: str, action: Dict[str, Any]) -> None:
             if not self._ensure_ready():
                 return
-    
+
             client_key = (client or "unknown").strip().lower() or "unknown"
             cleaned_text = (user_text or "").strip()
             if not cleaned_text:
                 return
-    
+
             action_json = json.dumps(action)
-    
+
             try:
                 if False and self._backend == "postgres":
                     with self._connect_postgres() as conn:
@@ -100,14 +96,14 @@ class MemoryWriteMixin:
             """Set or update a fact in memory."""
             if not self._ensure_ready():
                 return False
-    
+
             client_key = (client or "unknown").strip().lower() or "unknown"
             key = (fact_key or "").strip().lower()
             value = (fact_value or "").strip()
-    
+
             if not key or not value:
                 return False
-    
+
             try:
                 with self._connect_sqlite() as conn:
                     cur = conn.cursor()

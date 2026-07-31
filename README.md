@@ -18,12 +18,12 @@ https://youtu.be/pfRlhW-oROw
 - **Unified Launcher**: Easily start the backend server and desktop client together using the streamlined `run.py` entry point.
 - **Model Context Protocol (MCP)**: Now supports MCP integrations.
 - **Semantic Routing (Zero Latency)**: Uses a local ChromaDB vector database to instantly intercept and execute common commands (Play Media, Close App) in ~0.2s. Includes "Conversational Traps" to smartly bypass execution for chatty queries.
-- **Natural Language Parsing (NLP)**: Uses `spaCy` to grammatically extract entities (like app names) from commands instead of brittle Regex.
+- **Fast-Path App Extraction & Media Control**: Instantly extracts target applications or media intents (like "play next song" or "open Spotify") using robust RegEx (completely replacing the heavy `spaCy` NLP dependency for blazing fast performance).
 - **Zero-Latency UI Vision**: A Singleton background daemon continuously parses the Windows UI tree, allowing the agent to "see" your active window instantaneously without blocking execution.
 - **RAG Memory System (Obsidian)**: Seamlessly integrates with your local Obsidian Markdown vault via Vector Search, giving the agent a "long-term memory" of your personal notes. Includes non-greedy alias resolution for contact names.
 - **Context-Aware Zero-Latency App Control**: Scans the Z-order window hierarchy with `pygetwindow`, intelligently ignores IDE/terminals, and precisely closes the media player or app you were just looking at when saying "close it".
 - **Deep Parallel File Search**: Dynamically parses queries (e.g., "open portfolio from downloads folder") by splitting contextual prepositions ("in", "inside", "from"). Multi-threaded workers instantly search the filesystem using prefix matching.
-- **Native Power Control**: Maps commands like "go to sleep" and "shutdown" directly to non-destructive Windows sleep or confirmed shutdown/restart APIs, actively bypassing microphone-mute conflicts.
+- **Native Power Control & Safety Interceptor**: Maps commands like "go to sleep" and "shutdown" directly to native Windows APIs. Sensitive actions (like shutdown or restart) are actively intercepted by a **Confirmation Workflow** to prevent accidental data loss.
 - **Tool-Using Agent**: Uses Ollama with `qwen2.5:3b` (default) for intelligent intent routing, file system management, identity recall, and multi-step tool execution.
 
 ## Requirements
@@ -86,8 +86,10 @@ JARVIS_STT_ENGINE=windows
 JARVIS_WAKE_FUZZY_THRESHOLD=0.86
 
 # Visual & TTS Options
-JARVIS_HUD=0
-JARVIS_SPOKEN_FILLER=0
+JARVIS_WAKE_WORD="jarvis"
+# JARVIS_SPOKEN_FILLER="1"     # Uncomment to enable filler words ("Just a second...")
+# OBSIDIAN_VAULT_PATH="C:/path/to/your/vault" # For RAG memory
+# JARVIS_THOUGHTS_PATH="C:/path/to/your/vault/JARVIS_THOUGHTS.md" # For live-syncing agent thoughts to a markdown file
 ```
 
 ## Running
