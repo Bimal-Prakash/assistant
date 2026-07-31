@@ -327,6 +327,21 @@ def build_default_registry() -> ToolRegistry:
         executor=lambda question: exec_final_answer(text=question),
     ))
 
+    # Fallback aliases for shutdown hallucinations
+    registry.register(Tool(
+        name="shutdown_pc",
+        description="Shutdown the PC.",
+        parameters={"properties": {}},
+        executor=lambda **kwargs: exec_power_control(type="shutdown"),
+    ))
+
+    registry.register(Tool(
+        name="shutdown",
+        description="Shutdown the PC.",
+        parameters={"properties": {}},
+        executor=lambda **kwargs: exec_power_control(type="shutdown"),
+    ))
+
     registry.register(Tool(name="maximize_app", description="Maximize a specific application window.", parameters={"properties": {"app": {"type": "string", "description": "App name"}}, "required": ["app"]}, executor=exec_maximize_app))
     registry.register(Tool(name="restore_app", description="Restore a specific application window to normal size.", parameters={"properties": {"app": {"type": "string", "description": "App name"}}, "required": ["app"]}, executor=exec_restore_app))
     # Removed focus_app entirely because the 3B model confuses it with open_app. open_app handles focusing on Windows anyway.
