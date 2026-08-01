@@ -37,7 +37,7 @@ class LLMMixin:
         if action_obj and action_obj.get("_needs_confirmation"):
             tool_name = action_obj.get("_pending_tool")
             tool_args = action_obj.get("_pending_args", {})
-            if tool_name == "power_control":
+            if tool_name in ["power_control", "shutdown_pc", "shutdown"]:
                 with _CONFIRMATION_LOCK:
                     PENDING_POWER_CONFIRMATIONS[self.confirmation_key] = {
                         "type": tool_args.get("type", "shutdown"),
