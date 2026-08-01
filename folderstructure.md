@@ -24,6 +24,7 @@ assistant/
 │   ├── mcp_client.py             # Client for handling Model Context Protocol integrations.
 │   └── memory/                   # SQLite memory managers and vector database integrations.
 │       ├── connection.py         # DB connection setup.
+│       ├── consolidation.py      # Background daemon for memory consolidation.
 │       ├── extraction.py         # Entity extraction for memory.
 │       ├── read.py               # Memory retrieval logic.
 │       └── write.py              # Memory persistence logic.
@@ -33,6 +34,7 @@ assistant/
 │   ├── config.py                 # Client-specific configurations.
 │   ├── ui.py                     # The visual Heads-Up Display (HUD) overlay.
 │   ├── audio/                    # Speech-To-Text (STT) dispatcher and PyAudio streaming.
+│   │   ├── windows/              # Windows-specific audio implementations.
 │   │   ├── device.py             # OS-level audio device mapping.
 │   │   ├── stt_dispatcher.py     # Transcribes microphone input to text.
 │   │   └── tts.py                # Text-to-Speech playback (pyttsx3/edge-tts).
@@ -42,6 +44,7 @@ assistant/
 │   │   ├── confirmation.py       # Handles safety confirmation states (e.g. shutdown).
 │   │   ├── execution_actions.py  # Dispatcher for fast-path actions.
 │   │   ├── execution_heuristics.py # Intent guessing fallbacks.
+│   │   ├── execution_queries.py  # Handles state queries.
 │   │   ├── execution_resolver.py # The bypass router matching common commands.
 │   │   ├── keyboard.py           # Native keyboard hooks (Push-to-talk).
 │   │   ├── main.py               # Client loop core implementation.
@@ -68,9 +71,19 @@ assistant/
 ├── server/                       # The Backend API
 │   ├── app.py                    # The FastAPI application entry point.
 │   ├── dependencies.py           # Dependency injection for the API routes.
+│   ├── proactive_daemon.py       # Background daemon for sleep cycles and proactive thoughts.
 │   ├── api/                      # REST endpoints (e.g., POST /command).
+│   │   ├── processor/            # LLM interaction and parsing processors.
+│   │   │   ├── confirmation.py   # Handles multi-turn confirmations.
+│   │   │   ├── core.py           # Core processing logic.
+│   │   │   ├── execution.py      # Execution logic integration.
+│   │   │   ├── llm.py            # Primary LLM interface.
+│   │   │   └── memory.py         # Memory integration for the processor.
 │   │   └── routes.py             # Fast API endpoint definitions.
 │   └── parser/                   # Sanitizes and parses raw JSON output from the LLM.
+│       ├── rules/                # Parsing rule definitions.
+│       │   ├── power.py          # Power command rules.
+│       │   └── queries.py        # Information query rules.
 │       ├── contacts.py           # Contact alias parser.
 │       ├── media.py              # Media intent parser.
 │       ├── normalizer.py         # JSON and string artifact cleaner.
@@ -83,6 +96,7 @@ assistant/
     ├── executors/                # Specific tool implementations called directly by the LLM.
     │   ├── agentic.py            # Agentic core bindings.
     │   ├── apps.py               # Application interaction execution.
+    │   ├── audio.py              # Audio switching tool.
     │   ├── brightness.py         # Monitor brightness controller.
     │   ├── chatgpt.py            # Clipboard-based silent ChatGPT automation.
     │   ├── file_system.py        # File readers, writers, and listers.
@@ -94,6 +108,7 @@ assistant/
     │   ├── obsidian.py           # RAG-based Obsidian note vector searching.
     │   ├── power.py              # Sleep/Restart/Shutdown execution.
     │   ├── system_info.py        # Retrieves time, date, battery, etc.
+    │   ├── telegram.py           # Telegram messaging tool.
     │   ├── terminal.py           # Shell command execution.
     │   ├── ui_automation.py      # OpenCV + PyAutoGUI interactive vision execution.
     │   ├── vision.py             # Moondream visual LLM screencapture execution.

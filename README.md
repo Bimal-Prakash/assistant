@@ -12,7 +12,7 @@ https://youtu.be/pfRlhW-oROw
 
 - **Unified Modular Architecture**: Cleanly separated `client`, `server`, `core`, `agent`, `models`, and `tools` directories for a robust and scalable codebase.
 - **Agentic PC Controls**: Maximize, restore, focus, snap windows, hide all windows, and manage system performance.
-- **Advanced App Integrations**: Includes powerful WhatsApp audio and video call automation with image recognition fallbacks (`audio_call_btn.png`, `video_call_btn.png`), Spotify and YouTube playback, and lightning-fast Clipboard-based ChatGPT integration.
+- **Advanced App Integrations**: Includes powerful WhatsApp and Telegram audio/video call automation with image recognition fallbacks (`audio_call_btn.png`, `video_call_btn.png`), Spotify and YouTube playback, and lightning-fast Clipboard-based ChatGPT integration.
 - **Microphone & Streaming STT**: Uses built-in SpeechRecognition (Google STT) with intelligent silence detection, and dynamic PTT (Push-to-Talk) capabilities.
 - **Desktop Utilities**: Take screenshots, open shortcut folders, read/write to the clipboard, set timers, and empty the recycle bin via voice commands.
 - **Unified Launcher**: Easily start the backend server and desktop client together using the streamlined `run.py` entry point.
@@ -127,9 +127,9 @@ Say "Hey Jarvis" to activate, then use commands like:
 - "Hide all windows" / "Show desktop"
 - "Read my clipboard"
 
-**WhatsApp Integration:**
+**Messaging & Calls (WhatsApp/Telegram):**
 - "Call [Name] on WhatsApp"
-- "Video call [Name] on WhatsApp"
+- "Video call [Name] on Telegram"
 
 **Desktop Utilities:**
 - "Take a screenshot"
@@ -140,7 +140,7 @@ Say "Hey Jarvis" to activate, then use commands like:
 
 **Media & System Control:**
 - "Play music" / "Next song"
-- "Increase volume" / "Mute"
+- "Increase volume" / "Mute" / "Switch audio output to speakers"
 - "Increase brightness" / "Decrease brightness"
 - "Shutdown" / "Restart" / "Sleep"
 
