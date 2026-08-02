@@ -241,7 +241,7 @@ def _normalize_action(action_obj: Dict[str, Any], default_target: str = "android
         "snap_window", "read_clipboard", "write_clipboard", "press_shortcut",
         "check_performance", "lock_pc", "empty_recycle_bin", "take_screenshot",
         "show_notification", "set_timer", "open_folder", "open_file", "search_files", "whatsapp_call",
-        "spotify_like"
+        "spotify_like", "type_string", "confirm_action", "save_screenshot_to_desktop"
     }
 
     if action in agentic_actions:
@@ -262,6 +262,9 @@ def _normalize_action(action_obj: Dict[str, Any], default_target: str = "android
             query=action_obj.get("query"),
             contact_name=action_obj.get("contact_name"),
             call_type=action_obj.get("call_type"),
+            tool_name=action_obj.get("tool_name"),
+            tool_args=action_obj.get("tool_args"),
+            risk_tier=action_obj.get("risk_tier"),
         )
 
     text = str(action_obj.get("text", "")).strip() or "I am not sure how to do that yet."

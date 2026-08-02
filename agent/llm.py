@@ -303,6 +303,43 @@ class OllamaCommandModel:
         except Exception as e:
             logger.warning(f"Failed to unload model {self.model}: {e}")
 
+    def _classify_intent(self, user_text: str) -> str:
+        """Classifies the user intent into a specific category to filter tools."""
+        from core.prompts import CLASSIFIER_PROMPT
+        try:
+            payload = {
+                "model": self.model,
+                "prompt": f"User: \"{user_text}\"\n",
+                "system": CLASSIFIER_PROMPT,
+                "stream": False,
+                "options": {
+                    "temperature": 0.0,
+                    "num_ctx": 2048,
+                }
+            }
+            if self.keep_alive_seconds > 0:
+                payload["keep_alive"] = f"{self.keep_alive_seconds}s"
+            elif self.keep_alive_seconds == -1:
+                payload["keep_alive"] = "-1"
+
+            import requests
+            response = requests.post(self.api_url, json=payload, timeout=self.timeout_seconds)
+            response.raise_for_status()
+            
+            result = response.json().get("response", "").strip().lower()
+            
+            valid_categories = {"system_control", "app_control", "web", "obsidian", "memory", "file", "chat", "vision", "system_interact", "general"}
+            
+            for word in result.split():
+                clean_word = "".join(c for c in word if c.isalnum() or c == "_")
+                if clean_word in valid_categories:
+                    return clean_word
+                    
+            return "general"
+        except Exception as e:
+            logger.warning(f"Intent classification failed: {e}")
+            return "general"
+
     def run_agent_loop(
         self,
         user_text: str,
@@ -310,7 +347,7 @@ class OllamaCommandModel:
         default_target: str = "pc",
         memory_context: str = "",
         session_id: str = "default",
-        max_iterations: int = 15,
+        max_iterations: int = 5,
     ) -> Dict[str, Any]:
         """
         Runs the ReAct agent loop.
@@ -319,27 +356,39 @@ class OllamaCommandModel:
         # Record user turn in conversation
         self.conversations.add_turn(session_id, "user", user_text)
 
-        # Build the tools prompt block
-        tools_block = self.registry.prompt_block()
+        # Stage 1: Classify Intent
+        category = self._classify_intent(user_text)
+        logger.info(f"Classified intent category: {category}")
+
+        # Stage 2: Build the tools prompt block
+        tools_block = self.registry.prompt_block(category=category)
 
         # Execution log accumulates within this single request
         execution_log = ""
         previous_calls = {}
+        
+        from tools.executors.system_observe import exec_observe_desktop
+        from agent.controller import verify_action_success
+        import time
 
-        current_context = []
-
-        for iteration in range(max_iterations):
+        step_count = 0
+        while step_count < max_iterations:
+            step_count += 1
+            
+            # Observe Phase
+            pre_observe = exec_observe_desktop()
+            
             sys_prompt, user_prompt = _build_prompt(
                 user_text=user_text,
                 tools_block=tools_block,
                 conversation_history=self.conversations.get_history(session_id),
-                execution_log=execution_log,
+                execution_log=execution_log + f"\n\n[System Observation Before Action]\n{pre_observe}",
             )
 
             try:
                 action_obj, _ = self._call_model(sys_prompt, user_prompt, None)
             except ModelError as e:
-                logger.error("Agent model error on step %d: %s", iteration + 1, e)
+                logger.error("Agent model error on step %d: %s", step_count, e)
                 return self._make_speak_action("I encountered an error while thinking.", default_target)
 
             thought = action_obj.get("thought", "")
@@ -348,7 +397,7 @@ class OllamaCommandModel:
 
             logger.info(
                 "Agent Step %d — THOUGHT: %s | TOOL: %s | ARGS: %s",
-                iteration + 1, thought, tool_name, json.dumps(tool_args, ensure_ascii=False),
+                step_count, thought, tool_name, json.dumps(tool_args, ensure_ascii=False),
             )
 
             # --- AGI Thought Logging to Obsidian ---
@@ -375,16 +424,38 @@ class OllamaCommandModel:
             call_sig = json.dumps({"tool": tool_name, "args": tool_args}, sort_keys=True)
             if call_sig in previous_calls:
                 previous_calls[call_sig] += 1
-                if previous_calls[call_sig] >= 3:
-                    logger.warning("Agent repeated same tool call 3 times. Forcing abort to prevent loop.")
-                    return self._make_speak_action("I'm stuck in a loop trying to search. Could you rephrase or be more specific?", default_target)
+                if previous_calls[call_sig] >= 2:
+                    logger.warning("Agent repeated same tool call 2 times. Forcing abort to prevent loop.")
+                    return self._make_speak_action("I don't have enough information to answer that.", default_target)
                 
                 logger.warning("Agent repeated same tool call. Injecting error to prompt.")
                 observation = f"ERROR: You just repeated the exact same tool call `{tool_name}` with identical arguments! You MUST use a different tool, change the arguments (e.g. use a shorter search query), or use `final_answer` to respond."
-                execution_log += f"\n[Step {iteration+1}] Thought: {thought}\nTool: {tool_name}\nArgs: {json.dumps(tool_args)}\nObservation:\n<observation>\n{observation}\n</observation>\n"
+                execution_log += f"\n[Step {step_count}] Thought: {thought}\nTool: {tool_name}\nArgs: {json.dumps(tool_args)}\nObservation:\n<observation>\n{observation}\n</observation>\n"
                 continue
             else:
                 previous_calls[call_sig] = 1
+
+            # --- Privacy Policy Layer ---
+            tool_obj = self.registry.get(tool_name)
+            if tool_obj:
+                from core.audit import audit_logger
+                if tool_obj.data_access:
+                    audit_logger.log_access(tool_name, tool_obj.data_access, tool_obj.risk_tier)
+                
+                if tool_obj.risk_tier in ["dangerous", "external"]:
+                    user_lower = user_text.lower()
+                    confirmed = any(word in user_lower for word in ["yes", "yeah", "do it", "proceed", "confirm", "ok", "sure", "go ahead"])
+                    if not confirmed:
+                        return {
+                            "action": "confirm_action",
+                            "target": default_target,
+                            "tool_name": tool_name,
+                            "tool_args": tool_args,
+                            "risk_tier": tool_obj.risk_tier,
+                            "response": f"Confirmation required for high-risk action: {tool_name}"
+                        }
+                    else:
+                        logger.info(f"User implicitly/explicitly confirmed high-risk action {tool_name}")
 
             # ---- final_answer: we're done ----
             if tool_name == "final_answer":
@@ -395,7 +466,7 @@ class OllamaCommandModel:
 
                 if not answer_text:
                     observation = "Error: final_answer requires a 'text' argument containing what you want to say to the user. Please try again."
-                    execution_log += f"\n[Step {iteration+1}] Thought: {thought}\nTool: {tool_name}\nArgs: {json.dumps(tool_args)}\nObservation:\n<observation>\n{observation}\n</observation>\n"
+                    execution_log += f"\n[Step {step_count}] Thought: {thought}\nTool: {tool_name}\nArgs: {json.dumps(tool_args)}\nObservation:\n<observation>\n{observation}\n</observation>\n"
                     continue
 
                 self.conversations.add_turn(session_id, "assistant", str(answer_text))
@@ -408,7 +479,7 @@ class OllamaCommandModel:
                 "focus_app", "hide_all_windows", "snap_window", "read_clipboard",
                 "write_clipboard", "press_shortcut", "check_performance", "lock_pc",
                 "empty_recycle_bin", "save_screenshot_to_desktop", "show_notification", "set_timer",
-                "open_folder", "open_file", "whatsapp_call", "open_website", "send_whatsapp"
+                "open_folder", "open_file", "whatsapp_call", "open_website", "send_whatsapp", "type_string"
             }
             if tool_name in CLIENT_ACTIONS:
                 observation = self.registry.execute(tool_name, tool_args)
@@ -424,7 +495,7 @@ class OllamaCommandModel:
                 except (json.JSONDecodeError, ValueError):
                     pass
                 # If it wasn't a client action JSON, treat as observation
-                execution_log += f"\n[Step {iteration+1}] Thought: {thought}\nTool: {tool_name}\nArgs: {json.dumps(tool_args)}\nObservation:\n<observation>\n{observation}\n</observation>\n"
+                execution_log += f"\n[Step {step_count}] Thought: {thought}\nTool: {tool_name}\nArgs: {json.dumps(tool_args)}\nObservation:\n<observation>\n{observation}\n</observation>\n"
                 continue
 
             # ---- Server-side tools (everything else) ----
@@ -434,6 +505,15 @@ class OllamaCommandModel:
             observation = self.registry.execute(tool_name, tool_args)
             logger.info("Tool observation: %s", observation[:300])
 
+            # Verify Phase
+            time.sleep(0.5) # Give UI a moment to update
+            post_observe = exec_observe_desktop()
+            verification_error = verify_action_success(tool_name, tool_args, pre_observe, post_observe)
+            
+            if verification_error:
+                observation += f"\n\n[VERIFICATION FAILURE]\n{verification_error}"
+                logger.warning(f"Action verification failed: {verification_error}")
+            
             # --- INSTANT KILL SWITCH & FATAL ABORT ---
             obs_lower = observation.lower()
             if "fail-safe triggered" in obs_lower:
@@ -454,6 +534,10 @@ class OllamaCommandModel:
                     "_pending_tool": tool_name,
                     "_pending_args": tool_args,
                 }
+            
+            if "error:" in obs_lower and "fatal" in obs_lower:
+                logger.error("Fatal error from tool %s. Aborting loop.", tool_name)
+                return self._make_speak_action(f"I encountered a fatal error running {tool_name}.", default_target)
 
             if tool_name in ["volume_control", "brightness_control", "media_control", "network_control", "mic_control", "power_control", "look_at_screen"]:
                 if not observation.startswith("Error executing"):
@@ -461,7 +545,7 @@ class OllamaCommandModel:
                     self.conversations.add_turn(session_id, "assistant", observation)
                     return self._make_speak_action(observation, default_target)
 
-            execution_log += f"\n[Step {iteration+1}] Thought: {thought}\nTool: {tool_name}\nArgs: {json.dumps(tool_args)}\nObservation:\n<observation>\n{observation}\n</observation>\n"
+            execution_log += f"\n[Step {step_count}] Thought: {thought}\nTool: {tool_name}\nArgs: {json.dumps(tool_args)}\nObservation:\n<observation>\n{observation}\n</observation>\n"
 
         # Ran out of iterations
         fallback = "I thought too long and had to stop. Could you rephrase?"

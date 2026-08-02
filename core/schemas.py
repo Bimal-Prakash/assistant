@@ -32,3 +32,8 @@ class ActionResponse(BaseModel):
     query: Optional[str] = None
     contact_name: Optional[str] = None
     call_type: Optional[str] = None
+    
+    # Confirmation fields
+    tool_name: Optional[str] = None
+    tool_args: Optional[dict] = None
+    risk_tier: Optional[str] = None

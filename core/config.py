@@ -22,14 +22,14 @@ def _load_dotenv_file() -> None:
 
 _load_dotenv_file()
 
-HOST = os.getenv("JARVIS_HOST", "0.0.0.0")
+HOST = os.getenv("JARVIS_HOST", "127.0.0.1")
 PORT = int(os.getenv("JARVIS_PORT", "8000"))
 
 OLLAMA_API_URL = os.getenv("OLLAMA_API_URL", "http://127.0.0.1:11434/api/generate")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL")
 OLLAMA_VISION_MODEL = os.getenv("OLLAMA_VISION_MODEL")
 OLLAMA_TIMEOUT_SECONDS = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "60"))
-OLLAMA_KEEP_ALIVE_SECONDS = int(os.getenv("OLLAMA_KEEP_ALIVE_SECONDS", "0"))
+OLLAMA_KEEP_ALIVE_SECONDS = int(os.getenv("OLLAMA_KEEP_ALIVE_SECONDS", "-1"))
 
 CONTACTS_FILE = BASE_DIR / "contacts.json"
 
@@ -44,10 +44,12 @@ WAKE_WORDS = [
 # External MCP Servers to boot on startup
 # Format: {"server_name": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "<base_dir>"]}}
 MCP_SERVERS = {
-    "filesystem": {
-        "command": "npx.cmd",
-        "args": ["-y", "@modelcontextprotocol/server-filesystem", str(BASE_DIR.parent)]
-    }
+    # Disabled by default due to high risk of broad filesystem access.
+    # Enable only in a restricted directory if needed.
+    # "filesystem": {
+    #     "command": "npx.cmd",
+    #     "args": ["-y", "@modelcontextprotocol/server-filesystem", str(BASE_DIR / "sandbox")]
+    # }
 }
 
 ALLOWED_ACTIONS = {
@@ -83,6 +85,10 @@ ALLOWED_ACTIONS = {
     "brightness_control",
     "power_control",
     "mic_control",
+    "spotify_like",
+    "confirm_action",
+    "type_string",
+    "save_screenshot_to_desktop",
 }
 
 

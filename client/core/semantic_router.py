@@ -132,14 +132,27 @@ class SemanticRouter:
             "make it", "set it to", "decrease it", "increase it"
         ],
         "CONVERSATIONAL_TRAP": [
-            "what is my hobby", "who is my favorite artist", "how are you",
-            "what is your name", "who am I", "tell me a joke", "search the web",
-            "what do i like", "can you answer a question", "hello", "jarvis",
+            "how are you", "tell me a joke", "search the web",
+            "can you answer a question", "hello", "jarvis",
             "play juicewrlds song", "play my favorite artist", "play taylor swift",
-            "are you conscious", "do you know who that is", "who is that",
-            "what does jarvis mean", "what are you", "how do you work",
+            "are you conscious", "what does jarvis mean", "what are you", "how do you work",
             "thank you jarvis now you can shutdown", "now you can shutdown",
-            "close that", "what do u see on screen", "what do you see"
+            "close that"
+        ],
+        "ANALYZE_SCREEN": [
+            "what do you see on the screen", "what do you see on screen", "what do you see",
+            "analyse the screen", "analyze the screen", "what is on my screen",
+            "look at the screen", "can you see the screen"
+        ],
+        "MEMORY_SEARCH": [
+            "what is my hobby", "who is my favorite artist", "what is your name",
+            "who am I", "what do i like", "do you know who that is", "who is that",
+            "what is my mom's name", "who is my brother", "do you remember",
+            "what did I say", "what was the name of"
+        ],
+        "CURRENT_MEDIA": [
+            "what am i listening to right now", "what song is playing", "who is this artist",
+            "what is this song", "name this song", "what's playing"
         ]
     }
 
@@ -232,15 +245,21 @@ class SemanticRouter:
 
                 # Dynamic Thresholds for ChromaDB L2 distance
                 if "MEDIA_CONTROL" in intent:
-                    threshold = 0.20
+                    threshold = 0.30
                 elif intent == "OPEN_APP":
                     threshold = 0.15  # Ultra strict to prevent "on spotify" from matching "open spotify"
+                elif intent == "WHATSAPP_CALL":
+                    threshold = 0.55  # Lenient because names can cause high variance in embedding distance
                 else:
                     threshold = 0.45
 
                 if distance < threshold:
                     if intent == "CONVERSATIONAL_TRAP":
                         return None
+                    if intent == "MEMORY_SEARCH":
+                        return intent
+                    if intent == "ANALYZE_SCREEN":
+                        return intent
                     return intent
             return None
         except Exception as e:

@@ -6,7 +6,7 @@ from .terminal import exec_run_terminal
 from .volume import exec_volume_control
 from .brightness import exec_brightness_control
 from .power import exec_power_control
-from .media import exec_media_control
+from .media import exec_media_control, exec_get_current_media_info
 from .network import exec_network_control
 from .mic import exec_mic_control
 from .whatsapp import exec_send_whatsapp, exec_whatsapp_call
@@ -18,6 +18,7 @@ from .vision import exec_look_at_screen, exec_vision_click
 from .chatgpt import exec_ask_chatgpt_visually
 from .ui_automation import exec_analyze_ui, exec_click_ui_element, exec_type_ui_element
 from .file_system import exec_list_directory, exec_read_file, exec_write_file, exec_search_files
+from .system_observe import exec_observe_desktop
 
 from .agentic import (
     exec_maximize_app, exec_restore_app, exec_focus_app, exec_hide_all_windows, exec_snap_window,
@@ -38,6 +39,7 @@ __all__ = [
     "exec_brightness_control",
     "exec_power_control",
     "exec_media_control",
+    "exec_get_current_media_info",
     "exec_network_control",
     "exec_mic_control",
     "exec_run_terminal",
@@ -57,5 +59,5 @@ __all__ = [
     "exec_read_clipboard", "exec_write_clipboard", "exec_press_shortcut",
     "exec_check_performance", "exec_lock_pc", "exec_empty_recycle_bin", "exec_take_screenshot",
     "exec_show_notification", "exec_set_timer", "exec_open_folder", "exec_open_file", "exec_search_files",
-    "exec_analyze_ui", "exec_click_ui_element", "exec_type_ui_element"
+    "exec_analyze_ui", "exec_click_ui_element", "exec_type_ui_element", "exec_observe_desktop"
 ]

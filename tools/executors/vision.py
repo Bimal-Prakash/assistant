@@ -37,7 +37,7 @@ def exec_look_at_screen(query: str = "Describe what is on the screen in detail."
         img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
         # 3. Ask Vision Model
-        system_prompt = "You are a direct vision analyzer. Answer the prompt based on the image. Do NOT say 'As an AI' or 'I cannot see your screen'. Just describe the image directly."
+        system_prompt = "You are a strict, literal vision analyzer. Look at the provided screenshot. Describe ONLY what is explicitly visible. Be concise. DO NOT invent or hallucinate websites, text, apps, or UI elements that are not clearly shown in the image. Do NOT say 'As an AI' or 'I cannot see your screen'."
         payload = {
             "model": OLLAMA_VISION_MODEL,
             "prompt": query,
@@ -126,7 +126,7 @@ def _apply_grid_overlay(image, rows=10, cols=10):
     return image, coords_map
 
 def exec_vision_click(element_description: str) -> str:
-    """Takes a screenshot, adds a grid, asks llava-phi3 for the box number, and clicks it."""
+    """Takes a screenshot, adds a grid, asks moondream for the box number, and clicks it."""
     try:
         # pyrefly: ignore [missing-import]
         from PIL import ImageGrab, Image
@@ -168,7 +168,7 @@ def exec_vision_click(element_description: str) -> str:
 
         data = response.json()
         result = data.get("response", "").strip()
-        logger.info(f"llava-phi3 vision click response: {result}")
+        logger.info(f"moondream vision click response: {result}")
 
         # 5. Parse the integer
         match = re.search(r'\b([1-9][0-9]?|100)\b', result)

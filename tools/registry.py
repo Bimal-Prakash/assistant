@@ -5,9 +5,11 @@ Each tool has a name, description, parameter schema, and an executor function.
 The agent picks tools by name; the registry executes them and returns observations.
 """
 
+from tools.executors import exec_get_current_media_info
 from tools.executors import exec_remember_fact
 import logging
 from typing import Any, Callable, Dict, List, Optional
+
 
 from tools.executors.apps import exec_type_string
 from tools.executors import (
@@ -19,7 +21,7 @@ from tools.executors import (
     exec_volume_control,
     exec_brightness_control,
     exec_power_control,
-    exec_media_control,
+    exec_media_control, exec_get_current_media_info,
     exec_network_control,
     exec_mic_control,
     exec_send_whatsapp, exec_whatsapp_call, exec_telegram_call,
@@ -35,6 +37,7 @@ from tools.executors import (
 )
 from tools.executors.file_system import exec_list_directory, exec_read_file, exec_write_file
 from tools.executors.obsidian import exec_search_obsidian, exec_read_obsidian_note
+from tools.executors.system_observe import exec_observe_desktop
 
 logger = logging.getLogger("jarvis.tools.registry")
 
@@ -49,11 +52,15 @@ class Tool:
         description: str,
         parameters: Dict[str, Any],
         executor: Callable[..., str],
+        risk_tier: str = "safe",
+        data_access: Optional[List[str]] = None,
     ):
         self.name = name
         self.description = description
         self.parameters = parameters
         self.executor = executor
+        self.risk_tier = risk_tier
+        self.data_access = data_access or []
 
     def to_prompt_str(self) -> str:
         param_desc = ", ".join(
@@ -69,6 +76,17 @@ class Tool:
 class ToolRegistry:
     def __init__(self) -> None:
         self._tools: Dict[str, Tool] = {}
+        self._categories = {
+            "system_control": {"get_system_info", "volume_control", "brightness_control", "power_control", "network_control", "mic_control", "switch_audio_output", "set_timer", "check_performance"},
+            "app_control": {"open_app", "close_app", "minimize_app", "maximize_app", "restore_app", "hide_all_windows", "snap_window", "run_terminal", "media_control", "get_current_media_info"},
+            "web": {"open_website", "search_web"},
+            "obsidian": {"search_obsidian", "read_obsidian_note"},
+            "memory": {"remember_fact", "search_memory"},
+            "file": {"list_directory", "read_file", "write_file", "empty_recycle_bin", "open_folder", "open_file", "search_files"},
+            "chat": {"send_whatsapp", "whatsapp_call", "telegram_call"},
+            "vision": {"take_screenshot", "save_screenshot_to_desktop", "look_at_screen", "ask_chatgpt", "vision_click", "analyze_ui", "click_ui_element", "type_ui_element"},
+            "system_interact": {"read_clipboard", "write_clipboard", "press_shortcut", "type_string", "show_notification", "observe_desktop"}
+        }
 
     def register(self, tool: Tool) -> None:
         self._tools[tool.name] = tool
@@ -79,8 +97,15 @@ class ToolRegistry:
     def all_tools(self) -> List[Tool]:
         return list(self._tools.values())
 
-    def prompt_block(self) -> str:
-        return "\n".join(t.to_prompt_str() for t in self._tools.values())
+    def prompt_block(self, category: Optional[str] = None) -> str:
+        if category and category in self._categories:
+            allowed_tools = self._categories[category] | {"final_answer"}
+            tools = [t for name, t in self._tools.items() if name in allowed_tools]
+            if not tools:
+                tools = self.all_tools()
+        else:
+            tools = self.all_tools()
+        return "\n".join(t.to_prompt_str() for t in tools)
 
     def execute(self, name: str, args: Dict[str, Any]) -> str:
         tool = self._tools.get(name)
@@ -106,6 +131,13 @@ def build_default_registry() -> ToolRegistry:
     registry = ToolRegistry()
 
     registry.register(Tool(
+        name="observe_desktop",
+        description="Returns a unified snapshot of the desktop state, including the active window title, clipboard snippet, and the UI elements of the active window.",
+        parameters={"properties": {}},
+        executor=exec_observe_desktop,
+    ))
+
+    registry.register(Tool(
         name="get_system_info",
         description="Get time, date, battery, volume, or brightness.",
         parameters={"properties": {
@@ -118,9 +150,9 @@ def build_default_registry() -> ToolRegistry:
         name="open_app",
         description="Open an application (like Notepad, Chrome, Spotify) or a website (like Facebook, YouTube). ALWAYS use this to 'open' an app, 'play' a song/video, 'switch' to an app, or switch to a browser tab. DO NOT use 'open_file' for this.",
         parameters={"properties": {
-            "app_name": {"type": "string", "description": "App name (e.g., 'notepad', 'chrome', 'whatsapp')"},
+            "app": {"type": "string", "description": "App name (e.g., 'notepad', 'chrome', 'whatsapp')"},
             "text": {"type": "string", "description": "Text to search or type. If none, omit this parameter."},
-        }, "required": ["app_name"]},
+        }, "required": ["app"]},
         executor=exec_open_app,
     ))
 
@@ -131,6 +163,8 @@ def build_default_registry() -> ToolRegistry:
             "app": {"type": "string", "description": "App name to close"},
         }, "required": ["app"]},
         executor=exec_close_app,
+        risk_tier="sensitive",
+        data_access=["filesystem", "system"],
     ))
 
     registry.register(Tool(
@@ -149,6 +183,8 @@ def build_default_registry() -> ToolRegistry:
             "url": {"type": "string", "description": "Full URL to open"},
         }, "required": ["url"]},
         executor=exec_open_website,
+        risk_tier="sensitive",
+        data_access=["network"],
     ))
 
     registry.register(Tool(
@@ -158,6 +194,8 @@ def build_default_registry() -> ToolRegistry:
             "query": {"type": "string", "description": "Search query"},
         }, "required": ["query"]},
         executor=exec_search_web,
+        risk_tier="external",
+        data_access=["network"],
     ))
 
     registry.register(Tool(
@@ -167,6 +205,8 @@ def build_default_registry() -> ToolRegistry:
             "command": {"type": "string", "description": "PowerShell command to execute"},
         }, "required": ["command"]},
         executor=exec_run_terminal,
+        risk_tier="dangerous",
+        data_access=["filesystem", "system"],
     ))
 
     registry.register(Tool(
@@ -183,6 +223,8 @@ def build_default_registry() -> ToolRegistry:
         description="Reads the active window's UI DOM tree and returns a list of interactive elements (buttons, inputs, etc). Use this FIRST before clicking or typing to find the exact element names.",
         parameters={"properties": {}},
         executor=exec_analyze_ui,
+        risk_tier="sensitive",
+        data_access=["sensitive_data"],
     ))
 
     registry.register(Tool(
@@ -230,6 +272,8 @@ def build_default_registry() -> ToolRegistry:
             "type": {"type": "string", "description": "'shutdown', 'restart', or 'sleep'"},
         }, "required": ["type"]},
         executor=exec_power_control,
+        risk_tier="dangerous",
+        data_access=["filesystem", "system"],
     ))
 
     registry.register(Tool(
@@ -248,6 +292,13 @@ def build_default_registry() -> ToolRegistry:
             "state": {"type": "string", "description": "'play_pause', 'next', or 'previous'"},
         }, "required": ["state"]},
         executor=exec_media_control,
+    ))
+
+    registry.register(Tool(
+        name="get_current_media_info",
+        description="Get the title, artist, and playback status of the currently playing media. Use this when the user asks 'what song is this', 'what am I listening to', or 'what is playing'.",
+        parameters={"properties": {}},
+        executor=exec_get_current_media_info,
     ))
 
     registry.register(Tool(
@@ -277,6 +328,8 @@ def build_default_registry() -> ToolRegistry:
             "message": {"type": "string", "description": "Message text to send"},
         }, "required": ["phone", "message"]},
         executor=exec_send_whatsapp,
+        risk_tier="external",
+        data_access=["network"],
     ))
 
 
@@ -301,11 +354,12 @@ def build_default_registry() -> ToolRegistry:
     #     executor=exec_recall_fact,
     # ))
 
-    # registry.register(Tool(
     #     name="recall_last_command",
     #     description="Recall what the user's last command was.",
     #     parameters={"properties": {}},
     #     executor=exec_recall_last_command,
+    #     risk_tier="sensitive",
+    #     data_access=["sensitive_data"],
     # ))
 
     registry.register(Tool(
@@ -347,12 +401,12 @@ def build_default_registry() -> ToolRegistry:
     # Removed focus_app entirely because the 3B model confuses it with open_app. open_app handles focusing on Windows anyway.
     registry.register(Tool(name="hide_all_windows", description="Minimize all windows to show the desktop.", parameters={"properties": {}}, executor=exec_hide_all_windows))
     registry.register(Tool(name="snap_window", description="Snap active window to a side of the screen.", parameters={"properties": {"app": {"type": "string", "description": "App name"}, "direction": {"type": "string", "description": "'left', 'right', 'top', 'bottom'"}}, "required": ["app", "direction"]}, executor=exec_snap_window))
-    registry.register(Tool(name="read_clipboard", description="Read clipboard contents (text or image).", parameters={"properties": {}}, executor=exec_read_clipboard))
+    registry.register(Tool(name="read_clipboard", description="Read clipboard contents (text or image).", parameters={"properties": {}}, executor=exec_read_clipboard, risk_tier="sensitive", data_access=["sensitive_data"]))
     registry.register(Tool(name="write_clipboard", description="Write text to the system clipboard.", parameters={"properties": {"text": {"type": "string", "description": "Text to write"}}, "required": ["text"]}, executor=exec_write_clipboard))
     registry.register(Tool(name="press_shortcut", description="Press a keyboard shortcut or media key for playback.", parameters={"properties": {"shortcut": {"type": "string", "description": "Shortcut or media key ('playpause', 'nexttrack', 'prevtrack')"}}, "required": ["shortcut"]}, executor=exec_press_shortcut))
     registry.register(Tool(name="check_performance", description="Check system CPU, RAM, and Disk usage.", parameters={"properties": {}}, executor=exec_check_performance))
     registry.register(Tool(name="lock_pc", description="Lock the Windows workstation.", parameters={"properties": {}}, executor=exec_lock_pc))
-    registry.register(Tool(name="empty_recycle_bin", description="Empty the Windows recycle bin.", parameters={"properties": {}}, executor=exec_empty_recycle_bin))
+    registry.register(Tool(name="empty_recycle_bin", description="Empty the Windows recycle bin.", parameters={"properties": {}}, executor=exec_empty_recycle_bin, risk_tier="dangerous", data_access=["filesystem", "system"]))
     registry.register(Tool(name="save_screenshot_to_desktop", description="Save a screenshot to desktop. DO NOT use this to look at or read the screen. Use look_at_screen instead.", parameters={"properties": {}}, executor=exec_take_screenshot))
     registry.register(Tool(name="show_notification", description="Show a native Windows toast notification.", parameters={"properties": {"title": {"type": "string", "description": "Notification title"}, "message": {"type": "string", "description": "Notification message"}}, "required": ["title", "message"]}, executor=exec_show_notification))
     registry.register(Tool(name="set_timer", description="Set a countdown timer in seconds.", parameters={"properties": {"seconds": {"type": "integer", "description": "Seconds to wait"}, "label": {"type": "string", "description": "Timer label"}}, "required": ["seconds", "label"]}, executor=exec_set_timer))
@@ -367,6 +421,8 @@ def build_default_registry() -> ToolRegistry:
             "call_type": {"type": "string", "description": "'audio', 'video', or 'end'"}
         }, "required": ["call_type"]},
         executor=exec_whatsapp_call,
+        risk_tier="external",
+        data_access=["network"],
     ))
 
     registry.register(Tool(
@@ -377,6 +433,8 @@ def build_default_registry() -> ToolRegistry:
             "call_type": {"type": "string", "description": "'audio', 'video', or 'end'"}
         }, "required": ["call_type"]},
         executor=exec_telegram_call,
+        risk_tier="external",
+        data_access=["network"],
     ))
 
     registry.register(Tool(
@@ -386,6 +444,8 @@ def build_default_registry() -> ToolRegistry:
             "query": {"type": "string", "description": "What to ask the vision model about the screen (e.g., 'What app is open?', 'Read the error message')"}
         }, "required": ["query"]},
         executor=exec_look_at_screen,
+        risk_tier="sensitive",
+        data_access=["sensitive_data"],
     ))
 
     registry.register(Tool(
@@ -414,6 +474,8 @@ def build_default_registry() -> ToolRegistry:
             "max_lines": {"type": "integer", "description": "Maximum number of lines to read (default 200)"}
         }, "required": ["file_path"]},
         executor=exec_read_file,
+        risk_tier="sensitive",
+        data_access=["sensitive_data"],
     ))
 
     registry.register(Tool(
@@ -424,6 +486,8 @@ def build_default_registry() -> ToolRegistry:
             "content": {"type": "string", "description": "The exact text content to write to the file"}
         }, "required": ["file_path", "content"]},
         executor=exec_write_file,
+        risk_tier="dangerous",
+        data_access=["filesystem", "system"],
     ))
 
     registry.register(Tool(
@@ -442,6 +506,8 @@ def build_default_registry() -> ToolRegistry:
             "query": {"type": "string", "description": "The word or phrase to search for in notes"}
         }, "required": ["query"]},
         executor=exec_search_obsidian,
+        risk_tier="sensitive",
+        data_access=["sensitive_data"],
     ))
 
     registry.register(Tool(
@@ -451,6 +517,8 @@ def build_default_registry() -> ToolRegistry:
             "query": {"type": "string", "description": "The concept or meaning to search for"}
         }, "required": ["query"]},
         executor=exec_search_memory,
+        risk_tier="sensitive",
+        data_access=["sensitive_data"],
     ))
 
     registry.register(Tool(
@@ -460,6 +528,8 @@ def build_default_registry() -> ToolRegistry:
             "note_name": {"type": "string", "description": "The exact name of the note to read (with or without .md)"}
         }, "required": ["note_name"]},
         executor=exec_read_obsidian_note,
+        risk_tier="sensitive",
+        data_access=["sensitive_data"],
     ))
 
     return registry

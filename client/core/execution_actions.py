@@ -62,6 +62,12 @@ class ActionExecutionMixin:
                             return
                         self.speak("App name missing")
                         return
+                        
+                    if action_name == "confirm_action":
+                        tool_name = action.get("tool_name", "this action")
+                        msg = f"I need your permission to use {tool_name}. Please confirm if I should proceed."
+                        self.speak(msg)
+                        return
 
                     if action_name == "send_whatsapp":
                         phone = str(action.get("phone", "")).strip()
@@ -93,6 +99,14 @@ class ActionExecutionMixin:
                         if result and result != action.get("response"):
                             print(result)
                         return
+
+                    if action_name == "get_system_info":
+                        from tools.executors.system_info import exec_get_system_info
+                        query = str(action.get("query", "time"))
+                        result = exec_get_system_info(query)
+                        if result and not self._is_quiet_success_message(result):
+                            self.speak(result)
+                        return result
 
                     agentic_methods = {
                         "maximize_app": "_maximize_app",
@@ -149,6 +163,15 @@ class ActionExecutionMixin:
                         if result and not self._is_quiet_success_message(result):
                             self.speak(result)
                         return result
+
+                    if action_name == "get_current_media_info":
+                        try:
+                            from tools.system.media import get_current_media_info
+                            info = get_current_media_info()
+                            self.speak(info)
+                        except Exception as e:
+                            self.speak(f"Could not get media info: {e}")
+                        return
 
                     if action_name == "type_text":
                         message = str(action.get("response") or action.get("text") or "Okay")

@@ -79,14 +79,26 @@ def exec_read_obsidian_note(note_name: str) -> str:
     if not note_name.lower().endswith('.md'):
         note_name += '.md'
 
-    # Search for the file in the vault
-    search_pattern = os.path.join(vault_path, "**", "*.md")
     matched_file = None
+    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "chroma_db")
+    filename_cache_file = os.path.join(db_path, "filename_to_path.json")
 
-    for file_path in glob.glob(search_pattern, recursive=True):
-        if os.path.basename(file_path).lower() == note_name.lower():
-            matched_file = file_path
-            break
+    import json
+    if os.path.exists(filename_cache_file):
+        try:
+            with open(filename_cache_file, "r", encoding="utf-8") as f:
+                filename_to_path = json.load(f)
+            matched_file = filename_to_path.get(note_name.lower())
+        except Exception as e:
+            logger.warning(f"Failed to read filename cache: {e}")
+
+    if not matched_file:
+        # Fallback to glob if cache doesn't exist or file not found
+        search_pattern = os.path.join(vault_path, "**", "*.md")
+        for file_path in glob.glob(search_pattern, recursive=True):
+            if os.path.basename(file_path).lower() == note_name.lower():
+                matched_file = file_path
+                break
 
     if not matched_file:
         return f"Error: Note '{note_name}' not found in the Obsidian vault."
@@ -127,21 +139,18 @@ def exec_semantic_search_obsidian(query: str) -> str:
     needs_update = False
     if not os.path.exists(db_file):
         needs_update = True
-    elif vault_path and os.path.exists(vault_path):
-        import glob
-        newest_md = max(glob.iglob(os.path.join(vault_path, "**/*.md"), recursive=True), key=os.path.getmtime, default=None)
-        if newest_md and os.path.getmtime(newest_md) > os.path.getmtime(db_file):
-            needs_update = True
+    # Removed slow glob.iglob check over the entire vault.
+    # Auto-indexing should be handled by a background cron job or on startup,
+    # not synchronously during a user search request.
 
     if needs_update:
-        logger.info("Obsidian vault changes detected. Auto-indexing...")
+        logger.info("Obsidian vault changes detected. Auto-indexing in background...")
         import subprocess
         script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "scripts", "index_obsidian.py")
         try:
-            subprocess.run(["python", script_path], check=True)
+            subprocess.Popen(["python", script_path])
         except Exception as e:
-            logger.error(f"Failed to auto-index Obsidian vault: {e}")
-            return f"Error: Failed to index Obsidian vault. Database may be out of date. {e}"
+            logger.error(f"Failed to trigger auto-index Obsidian vault: {e}")
 
     try:
         client = chromadb.PersistentClient(path=db_path)

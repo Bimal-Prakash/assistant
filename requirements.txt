@@ -21,3 +21,8 @@ chromadb
 spacy
 pystray>=0.19.3
 PyGetWindow
+winsdk
+PyQt6
+pyperclip
+psutil
+winshell

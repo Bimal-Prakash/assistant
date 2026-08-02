@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jarvis UI</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            /* No background on body, so it remains transparent */
+            background: transparent;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        /* The Dynamic Island */
+        #island {
+            margin-top: 10px;
+            height: 40px;
+            background: rgba(0, 0, 0, 0.75);
+            /* Windows liquid glass effect using backdrop filter */
+            backdrop-filter: blur(25px) saturate(180%);
+            -webkit-backdrop-filter: blur(25px) saturate(180%);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            
+            /* Smooth transitions for size changes */
+            transition: width 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), 
+                        background-color 0.3s ease;
+            width: 120px; /* Default Idle width */
+            
+            /* App drag region if we want to move it */
+            -webkit-app-region: drag;
+        }
+
+        /* State Classes */
+        #island.idle {
+            width: 40px; /* Just a small dot/pill */
+        }
+
+        #island.listening {
+            width: 220px; /* Wide enough for waves */
+        }
+
+        #island.processing {
+            width: 160px; /* Bigger island for waves */
+            background: rgba(10, 10, 20, 0.85); /* Slightly different tint */
+        }
+
+        /* Content Containers */
+        .content {
+            display: none;
+            width: 100%;
+            height: 100%;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        #island.idle #content-idle,
+        #island.listening #content-listening,
+        #island.processing #content-processing {
+            display: flex;
+            opacity: 1;
+        }
+
+        /* Idle State Visuals */
+        .dot {
+            width: 8px;
+            height: 8px;
+            background-color: rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+        }
+
+        /* Listening Waves Animation */
+        .wave-container {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            height: 20px;
+        }
+
+        .wave {
+            width: 4px;
+            height: 4px;
+            background: #00ffcc;
+            border-radius: 2px;
+            animation: bounce 1s ease-in-out infinite;
+            box-shadow: 0 0 8px #00ffcc;
+        }
+
+        .wave:nth-child(1) { animation-delay: 0.0s; }
+        .wave:nth-child(2) { animation-delay: 0.1s; }
+        .wave:nth-child(3) { animation-delay: 0.2s; }
+        .wave:nth-child(4) { animation-delay: 0.3s; }
+        .wave:nth-child(5) { animation-delay: 0.4s; }
+        .wave:nth-child(6) { animation-delay: 0.3s; }
+        .wave:nth-child(7) { animation-delay: 0.2s; }
+        .wave:nth-child(8) { animation-delay: 0.1s; }
+
+        @keyframes bounce {
+            0%, 100% { height: 4px; }
+            50% { height: 100%; }
+        }
+
+        /* Processing Waves Animation */
+        .processing-wave-container {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            height: 20px;
+        }
+
+        .processing-wave {
+            width: 4px;
+            height: 4px;
+            background: #a855f7;
+            border-radius: 2px;
+            animation: bounce 1s ease-in-out infinite alternate;
+            box-shadow: 0 0 8px #a855f7;
+        }
+
+        .processing-wave:nth-child(1) { animation-delay: 0.0s; }
+        .processing-wave:nth-child(2) { animation-delay: 0.2s; }
+        .processing-wave:nth-child(3) { animation-delay: 0.4s; }
+        .processing-wave:nth-child(4) { animation-delay: 0.6s; }
+        .processing-wave:nth-child(5) { animation-delay: 0.4s; }
+        .processing-wave:nth-child(6) { animation-delay: 0.2s; }
+
+    </style>
+</head>
+<body>
+    <div id="island" class="idle">
+        <!-- Idle State -->
+        <div id="content-idle" class="content">
+            <div class="dot"></div>
+        </div>
+
+        <!-- Listening State -->
+        <div id="content-listening" class="content">
+            <div class="wave-container">
+                <div class="wave"></div>
+                <div class="wave"></div>
+                <div class="wave"></div>
+                <div class="wave"></div>
+                <div class="wave"></div>
+                <div class="wave"></div>
+                <div class="wave"></div>
+                <div class="wave"></div>
+            </div>
+        </div>
+
+        <!-- Processing State -->
+        <div id="content-processing" class="content">
+            <div class="processing-wave-container">
+                <div class="processing-wave"></div>
+                <div class="processing-wave"></div>
+                <div class="processing-wave"></div>
+                <div class="processing-wave"></div>
+                <div class="processing-wave"></div>
+                <div class="processing-wave"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const island = document.getElementById('island');
+
+        // Functions to be called from Python via PyWebView
+        function setIdle() {
+            island.className = 'idle';
+        }
+
+        function setListening() {
+            island.className = 'listening';
+        }
+
+        function setProcessing() {
+            island.className = 'processing';
+        }
+
+        // We can expose this object to pywebview
+        window.JarvisUI = {
+            setState: function(state) {
+                if (state === 'idle') setIdle();
+                else if (state === 'listening') setListening();
+                else if (state === 'processing') setProcessing();
+            }
+        };
+
+        // For testing without Python, uncomment these to see the animation cycle:
+        /*
+        setInterval(() => {
+            if (island.className === 'idle') setListening();
+            else if (island.className === 'listening') setProcessing();
+            else setIdle();
+        }, 3000);
+        */
+    </script>
+</body>
+</html>

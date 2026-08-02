@@ -15,6 +15,7 @@ logger = logging.getLogger("jarvis.client")
 # Global lazy-initialized semantic router and NLP model
 _semantic_router = None
 _nlp = None
+_OBSIDIAN_ALIAS_CACHE: Dict[str, str | None] = {}
 
 def _extract_app_name(text: str) -> str:
     """Extracts the target application name from a command using regex to stop at conjunctions."""
@@ -95,71 +96,70 @@ class ResolverMixin:
         # Try to extract a name if the user wants to call someone
         call_match = re.search(r"\b(?:call|ring)\s+([a-zA-Z0-9_ ]+)", cmd_lower) if not skip_bypass else None
 
+        def resolve_alias(alias: str) -> str:
+            vault = os.getenv("OBSIDIAN_VAULT_PATH", "")
+            if not vault:
+                print("[Obsidian] Error: OBSIDIAN_VAULT_PATH not set in .env")
+                return alias
+            if not os.path.exists(vault):
+                print(f"[Obsidian] Error: Vault path does not exist: {vault}")
+                return alias
+
+            import glob
+            import re
+
+            clean_alias = alias.replace(" ", "").replace("'", "").replace('"', '')
+            
+            if clean_alias.lower() in _OBSIDIAN_ALIAS_CACHE:
+                cached = _OBSIDIAN_ALIAS_CACHE[clean_alias.lower()]
+                if cached:
+                    print(f"\n[Obsidian] Resolved alias '{alias}' -> '{cached}' (from Cache)")
+                return cached
+            
+            files_searched = 0
+            for path in glob.iglob(os.path.join(vault, "**", "*.md"), recursive=True):
+                files_searched += 1
+                try:
+                    with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                        content = f.read()
+                        
+                        # FAST REJECTION: Skip file entirely if the alias isn't present
+                        if clean_alias.lower() not in content.lower().replace(" ", "").replace("'", "").replace('"', ''):
+                            continue
+                            
+                        for line in content.splitlines():
+                            line_clean = line.replace(" ", "").replace("'", "").replace('"', '').lower()
+                            if clean_alias.lower() in line_clean:
+                                semi_clean = line.replace("friends", "friend").replace("best friend", "bestfriend")
+                                extract_pattern = re.compile(
+                                    rf"(?i)(?:{re.escape(alias)}|{re.escape(clean_alias)})[^\.,;]*?(?:whatsapp name is|whatsapp is|name is|\bis\b|:|=|->)\s*[\"']?([A-Za-z0-9\s]+?)[\"']?(?:\s+|,|\.|$)",
+                                    re.IGNORECASE
+                                )
+                                match = extract_pattern.search(semi_clean)
+                                if not match:
+                                    match = extract_pattern.search(line)
+
+                                if match:
+                                    resolved_name = match.group(1).strip()
+                                    _OBSIDIAN_ALIAS_CACHE[clean_alias.lower()] = resolved_name
+                                    print(f"\n[Obsidian] Resolved alias '{alias}' -> '{resolved_name}' (in {os.path.basename(path)})")
+                                    return resolved_name
+                except Exception: pass
+
+            print(f"[Obsidian] Scanned {files_searched} notes. Alias '{alias}' not found.")
+            family_words = {"mother", "mom", "dad", "father", "brother", "sister", "friend", "wife", "husband"}
+            if alias.lower() in family_words:
+                print(f"[Obsidian] '{alias}' is a relationship word but wasn't found in regex. Falling back to LLM.")
+                _OBSIDIAN_ALIAS_CACHE[clean_alias.lower()] = None
+                return None
+
+            _OBSIDIAN_ALIAS_CACHE[clean_alias.lower()] = alias
+            return alias
+
         if call_match:
             name = call_match.group(1).split(" and ")[0].split(" then ")[0].split(" because ")[0].strip()
             if name.lower().startswith("my "):
                 name = name[3:].strip()
-
-            # --- ULTRA-FAST OBSIDIAN ALIAS RESOLUTION ---
-            # Quickly scan the local vault to resolve "mom", "dad", etc., into real names
-            def resolve_alias(alias: str) -> str:
-                vault = os.getenv("OBSIDIAN_VAULT_PATH", "")
-                if not vault:
-                    print("[Obsidian] Error: OBSIDIAN_VAULT_PATH not set in .env")
-                    return alias
-                if not os.path.exists(vault):
-                    print(f"[Obsidian] Error: Vault path does not exist: {vault}")
-                    return alias
-
-                import glob
-                import re
-
-                # Normalize alias to handle "best friend" vs "bestfriend"
-                clean_alias = alias.replace(" ", "").replace("'", "").replace('"', '')
-
-                # (Unused global pattern removed)
-
-                files_searched = 0
-                for path in glob.iglob(os.path.join(vault, "**", "*.md"), recursive=True):
-                    files_searched += 1
-                    try:
-                        with open(path, "r", encoding="utf-8", errors="ignore") as f:
-                            content = f.read()
-                            # Strip spaces and punctuation from the file content temporarily just for matching the alias part
-                            # Actually, simpler to just use the regex which is already quite forgiving
-                            for line in content.splitlines():
-                                line_clean = line.replace(" ", "").replace("'", "").replace('"', '').lower()
-                                if clean_alias.lower() in line_clean:
-                                    # Normalize the line slightly: make "best friends" into "bestfriend" so the regex catches it
-                                    semi_clean = line.replace("friends", "friend").replace("best friend", "bestfriend")
-
-                                    # Fallback simple regex on the original line
-                                    # Put longest phrases first ('name is' before 'is'), add word boundaries to '\bis\b' to avoid matching 'his'
-                                    # Extract multi-word names inside quotes, or 1-2 words if no quotes
-                                    # Prevent matching across sentences by replacing .*? with [^\.,;]*?
-                                    extract_pattern = re.compile(
-                                        rf"(?i)(?:{re.escape(alias)}|{re.escape(clean_alias)})[^\.,;]*?(?:name is|\bis\b|:|=|->)\s*[\"']?([A-Za-z0-9\s]+?)[\"']?(?:\s+|,|\.|$)",
-                                        re.IGNORECASE
-                                    )
-                                    match = extract_pattern.search(semi_clean)
-                                    if not match:
-                                        match = extract_pattern.search(line)
-
-                                    if match:
-                                        print(f"\n[Obsidian] Resolved alias '{alias}' -> '{match.group(1)}' (in {os.path.basename(path)})")
-                                        return match.group(1).strip()
-                    except Exception: pass
-
-                print(f"[Obsidian] Scanned {files_searched} notes. Alias '{alias}' not found.")
-
-                # If it's a generic family word, returning it will just make WhatsApp search for "mother"
-                # which is probably wrong. Return None to force it to the LLM, which has a smarter semantic search.
-                family_words = {"mother", "mom", "dad", "father", "brother", "sister", "friend", "wife", "husband"}
-                if alias.lower() in family_words:
-                    print(f"[Obsidian] '{alias}' is a relationship word but wasn't found in regex. Falling back to LLM.")
-                    return None
-
-                return alias
 
             resolved_name = resolve_alias(name)
 
@@ -185,7 +185,7 @@ class ResolverMixin:
         is_open_cmd = cmd_lower.startswith("open ") or cmd_lower.startswith("can you open ")
         
         # Only open FOLDERS in the fast path. Files require semantic context from the LLM.
-        if not skip_bypass and is_open_cmd and any(ind in cmd_lower for ind in folder_indicators):
+        if not skip_bypass and is_open_cmd and any(ind in cmd_lower for ind in folder_indicators) and not any(ind in cmd_lower for ind in file_indicators):
             # Normalize to 'open ' to extract the path correctly
             normalized_cmd = command.lower().replace("can you open ", "open ")
             folder_to_open = normalized_cmd[5:].split(" and ")[0].split(" then ")[0].split(" because ")[0].strip()
@@ -229,8 +229,33 @@ class ResolverMixin:
         if not skip_bypass and any(p in cmd_lower for p in prev_tab_phrases):
             print(f"[Benchmark] Intent detected (Fast Path Bypass): {time.time() - start_t:.2f}s")
             return {"action": "press_shortcut", "shortcut": "ctrl+shift+tab"}
+            
+        # System Info Fast Path (Time, Date, Battery)
+        time_phrases = ["what's the time", "what time is it", "current time", "what is the time"]
+        if not skip_bypass and any(p in cmd_lower for p in time_phrases):
+            print(f"[Benchmark] Intent detected (Fast Path Bypass): {time.time() - start_t:.2f}s")
+            return {"action": "get_system_info", "query": "time"}
+
+        date_phrases = ["what's the date", "what date is it", "current date", "what is the date", "what day is it"]
+        if not skip_bypass and any(p in cmd_lower for p in date_phrases):
+            print(f"[Benchmark] Intent detected (Fast Path Bypass): {time.time() - start_t:.2f}s")
+            return {"action": "get_system_info", "query": "date"}
+            
+        battery_phrases = ["battery percentage", "battery level", "how much battery"]
+        if not skip_bypass and any(p in cmd_lower for p in battery_phrases):
+            print(f"[Benchmark] Intent detected (Fast Path Bypass): {time.time() - start_t:.2f}s")
+            return {"action": "get_system_info", "query": "battery"}
+
         # Play / Media Control Fast Path Expansion
         import re
+
+        media_info_phrases = [
+            "what am i listening to", "what song is this", "what is playing", "what's playing", 
+            "what song is playing", "current song", "currently playing"
+        ]
+        if not skip_bypass and any(p in cmd_lower for p in media_info_phrases):
+            print(f"[Benchmark] Intent detected (Fast Path Bypass): {time.time() - start_t:.2f}s")
+            return {"action": "get_current_media_info"}
 
         # If it's a simple unpause/resume command
         simple_play = re.match(r"(?i)^(?:can you |jarvis )?(?:just )?play(?: the (?:fucking )?(?:song|music|track))?$", cmd_lower)
@@ -281,72 +306,8 @@ class ResolverMixin:
                     "text": song_name
                 }
 
-        # --- SEMANTIC ROUTER BYPASS ---
-        global _semantic_router
-        if _semantic_router is None:
-            _semantic_router = SemanticRouter()
-
-        semantic_intent = _semantic_router.route(command) if not skip_bypass else None
-        if semantic_intent:
-            print(f"[Benchmark] Semantic Intent detected: {semantic_intent} ({time.time() - start_t:.2f}s)")
-            if semantic_intent == "OPEN_APP":
-                app_name = _extract_app_name(command)
-                if app_name:
-                    return {"action": "open_app", "app": app_name}
-            elif semantic_intent == "CLOSE_APP":
-                app_name = _extract_app_name(command)
-                app_name = _resolve_context_app_name(app_name)
-                if app_name:
-                    return {"action": "close_app", "app": app_name}
-            elif semantic_intent == "MEDIA_CONTROL_PLAYPAUSE":
-                return {"action": "press_shortcut", "shortcut": "playpause"}
-            elif semantic_intent == "MEDIA_CONTROL_NEXT":
-                return {"action": "press_shortcut", "shortcut": "nexttrack"}
-            elif semantic_intent == "MEDIA_CONTROL_PREV":
-                return {"action": "press_shortcut", "shortcut": "prevtrack,prevtrack"}
-            elif semantic_intent == "MINIMIZE_APP":
-                return {"action": "press_shortcut", "shortcut": "win+d"}
-            elif semantic_intent == "WHATSAPP_CALL":
-                if not mentions_other_platform:
-                    import re
-                    call_match = re.search(r"\b(?:call|ring)\s+([a-zA-Z0-9_ ]+)", cmd_lower)
-                    if call_match:
-                        name = call_match.group(1).strip()
-                        # Reroute directly to the Call Fast Path logic (which resolves aliases)
-                        # For simplicity, we just trigger the whatsapp tool here natively
-                        return {"action": "whatsapp_call", "contact_name": name}
-            elif semantic_intent == "NETWORK_CONTROL":
-                from tools.executors.network import exec_network_control
-                net_type = "bluetooth" if "bluetooth" in cmd_lower else "wifi"
-                state = "off" if any(w in cmd_lower for w in ["off", "disable", "stop"]) else "on"
-                result = exec_network_control(type=net_type, state=state)
-                return {"action": "type_text", "text": result, "response": result}
-            elif semantic_intent == "BRIGHTNESS_CONTROL":
-                from tools.system.brightness import brightness_control
-                level = "up"
-                if any(w in cmd_lower for w in ["down", "lower", "decrease"]): level = "down"
-                if "max" in cmd_lower: level = "max"
-                if "min" in cmd_lower: level = "min"
-                import re
-                pct_match = re.search(r"(\d+)\s*(?:percent|%)", cmd_lower)
-                if pct_match: level = pct_match.group(1)
-                result = brightness_control(level)
-                return {"action": "type_text", "text": result, "response": result}
-            elif semantic_intent == "VOLUME_CONTROL":
-                from tools.system.volume import volume_control
-                level = "up"
-                if any(w in cmd_lower for w in ["down", "lower", "decrease"]): level = "down"
-                if "mute" in cmd_lower and "unmute" not in cmd_lower: level = "mute"
-                if "max" in cmd_lower: level = "max"
-                if "min" in cmd_lower: level = "min"
-                import re
-                pct_match = re.search(r"(\d+)\s*(?:percent|%)", cmd_lower)
-                if pct_match: level = pct_match.group(1)
-                result = volume_control(level)
-                return {"action": "type_text", "text": result, "response": result}
-                # If regex fails, let it fall through to the LLM
-            # If it's MEMORY_SEARCH, let the LLM handle it because it requires crafting a proper semantic query
-            # and formulating a conversational answer.
+        # --- SEMANTIC ROUTER REMOVED ---
+        # The LLM is now trusted to natively understand intents using its full toolset.
 
         if self.backend_reachable is None or (now - self._last_backend_check_ts) > 120:
             self._check_backend_status(retries=1, delay_seconds=0.2)

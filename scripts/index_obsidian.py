@@ -1,16 +1,14 @@
 import os
 import glob
 import logging
+import json
 
 # Load environment variables
-# pyrefly: ignore [missing-import]
 from dotenv import load_dotenv
 load_dotenv()
 
 try:
-    # pyrefly: ignore [missing-import]
     import chromadb
-    # pyrefly: ignore [missing-import]
     from chromadb.utils.embedding_functions import OllamaEmbeddingFunction
 except ImportError:
     print("Error: chromadb is not installed. Run 'pip install chromadb'.")
@@ -60,64 +58,97 @@ def main():
         url=f"{base_url}/api/embeddings"
     )
 
-    try:
-        client.delete_collection("obsidian_notes")
-    except Exception:
-        pass
-        
     collection = client.get_or_create_collection(
         name="obsidian_notes",
         embedding_function=ef
     )
 
-    # Find all markdown files
-    md_files = glob.glob(os.path.join(vault_path, "**/*.md"), recursive=True)
-    logger.info(f"Found {len(md_files)} markdown files in vault. Processing...")
+    cache_file = os.path.join(db_path, "vault_cache.json")
+    filename_cache_file = os.path.join(db_path, "filename_to_path.json")
+    
+    vault_cache = {}
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file, "r", encoding="utf-8") as f:
+                vault_cache = json.load(f)
+        except Exception:
+            pass
 
-    documents = []
-    metadatas = []
-    ids = []
+    md_files = glob.glob(os.path.join(vault_path, "**/*.md"), recursive=True)
+    
+    current_files = set()
+    filename_to_path = {}
+    
+    documents_to_upsert = []
+    metadatas_to_upsert = []
+    ids_to_upsert = []
+    
+    files_to_delete = []
 
     for file_path in md_files:
+        current_files.add(file_path)
+        filename = os.path.basename(file_path)
+        if filename.startswith("JARVIS_THOUGHTS"):
+            continue
+            
+        filename_to_path[filename.lower()] = file_path
+            
+        mtime = os.path.getmtime(file_path)
+        
+        if file_path in vault_cache and vault_cache[file_path].get("mtime") == mtime:
+            continue
+            
+        if file_path in vault_cache:
+            files_to_delete.append(file_path)
+            
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
-
-            filename = os.path.basename(file_path)
             
-            if filename.startswith("JARVIS_THOUGHTS"):
-                continue
-
-            # Chunk the file
             chunks = chunk_text(content)
             for idx, chunk in enumerate(chunks):
-                documents.append(chunk)
-                metadatas.append({"filename": filename, "path": file_path, "chunk": idx})
-                ids.append(f"{filename}_{idx}")
-
+                documents_to_upsert.append(chunk)
+                metadatas_to_upsert.append({"filename": filename, "path": file_path, "chunk": idx})
+                ids_to_upsert.append(f"{filename}_{idx}")
+                
+            vault_cache[file_path] = {"mtime": mtime, "chunks": len(chunks)}
         except Exception as e:
             logger.warning(f"Failed to read {file_path}: {e}")
 
-    if not documents:
-        logger.warning("No text found to index.")
-        return
+    for cached_file in list(vault_cache.keys()):
+        if cached_file not in current_files:
+            files_to_delete.append(cached_file)
+            del vault_cache[cached_file]
 
-    # Upsert in batches to avoid overwhelming Ollama
-    batch_size = 100
-    total_chunks = len(documents)
+    if files_to_delete:
+        logger.info(f"Removing {len(files_to_delete)} deleted/modified files from ChromaDB...")
+        for file_path in files_to_delete:
+            try:
+                collection.delete(where={"path": file_path})
+            except Exception as e:
+                pass
 
-    logger.info(f"Generated {total_chunks} chunks. Embedding and saving to ChromaDB...")
+    if documents_to_upsert:
+        batch_size = 20
+        total_chunks = len(documents_to_upsert)
+        logger.info(f"Generated {total_chunks} new/modified chunks. Embedding and saving to ChromaDB...")
 
-    for i in range(0, total_chunks, batch_size):
-        end = min(i + batch_size, total_chunks)
-        logger.info(f"Indexing batch {i} to {end}...")
-        collection.upsert(
-            documents=documents[i:end],
-            metadatas=metadatas[i:end],
-            ids=ids[i:end]
-        )
+        for i in range(0, total_chunks, batch_size):
+            end = min(i + batch_size, total_chunks)
+            logger.info(f"Indexing batch {i} to {end}...")
+            collection.upsert(
+                documents=documents_to_upsert[i:end],
+                metadatas=metadatas_to_upsert[i:end],
+                ids=ids_to_upsert[i:end]
+            )
 
-    logger.info("Successfully indexed all notes into VectorDB!")
+    os.makedirs(db_path, exist_ok=True)
+    with open(cache_file, "w", encoding="utf-8") as f:
+        json.dump(vault_cache, f)
+    with open(filename_cache_file, "w", encoding="utf-8") as f:
+        json.dump(filename_to_path, f)
+
+    logger.info("Successfully updated Obsidian index!")
 
 if __name__ == "__main__":
     main()

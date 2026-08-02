@@ -3,7 +3,12 @@
 
 def exec_remember_fact(key: str, value: str) -> str:
     from tools.executors.obsidian import get_vault_path
+    from core.redactor import privacy_filter
     import os
+    
+    # Scrub sensitive text before saving
+    safe_key = privacy_filter.scrub(key)
+    safe_value = privacy_filter.scrub(value)
     
     vault_path = get_vault_path()
     if not vault_path or not os.path.exists(vault_path):
@@ -17,9 +22,9 @@ def exec_remember_fact(key: str, value: str) -> str:
                 f.write("# Learned Preferences\n\nThis file stores facts and preferences learned by the assistant.\n\n")
                 
         with open(pref_file, "a", encoding="utf-8") as f:
-            f.write(f"- **{key}**: {value}\n")
+            f.write(f"- **{safe_key}**: {safe_value}\n")
             
-        return f"Successfully remembered: {key} = {value} in your Obsidian vault."
+        return f"Successfully remembered: {safe_key} = {safe_value} in your Obsidian vault."
     except Exception as e:
         return f"Failed to remember fact due to error: {e}"
 
@@ -121,6 +126,6 @@ def exec_search_memory(query: str) -> str:
         output.append(obsidian_res)
         
     if not output:
-        return f"I couldn't find any information about '{query}' in either your conversations or your personal notes."
+        return f"I couldn't find any information about '{query}' in either your conversations or your personal notes. (Hint: Do not repeat this search. Use final_answer to tell the user you don't know.)"
         
     return "\n\n".join(output)
