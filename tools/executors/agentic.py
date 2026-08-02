@@ -49,7 +49,4 @@ def exec_open_file(file_path: str = None, file_name: str = None) -> str:
     return json.dumps({"_client_action": "open_file", "file_path": path.strip()})
 
 
-def exec_whatsapp_call(contact_name: str, call_type: str = "audio") -> str:
-    contact_name = (contact_name or "").strip()
-    call_type = (call_type or "audio").strip().lower()
-    return json.dumps({"_client_action": "whatsapp_call", "contact_name": contact_name, "call_type": call_type})
+

@@ -21,7 +21,7 @@ from tools.executors import (
     exec_volume_control,
     exec_brightness_control,
     exec_power_control,
-    exec_media_control, exec_get_current_media_info,
+    exec_media_control,
     exec_network_control,
     exec_mic_control,
     exec_send_whatsapp, exec_whatsapp_call, exec_telegram_call,
@@ -120,13 +120,7 @@ class ToolRegistry:
             client_device = args.get("client_device", "pc")
             
             # Check if this tool is a client action mapped to the backend native execution
-            CLIENT_ACTIONS = {
-                "open_app", "close_app", "minimize_app", "maximize_app", "restore_app",
-                "hide_all_windows", "snap_window", "read_clipboard",
-                "write_clipboard", "press_shortcut", "check_performance", "lock_pc",
-                "empty_recycle_bin", "save_screenshot_to_desktop", "show_notification", "set_timer",
-                "open_folder", "open_file", "whatsapp_call", "open_website", "send_whatsapp", "type_string"
-            }
+            from core.config import CLIENT_ACTIONS
             if name in CLIENT_ACTIONS and client_device == "pc":
                 from tools.executors.windows_automation import exec_pc_action
                 return exec_pc_action(name, **args)

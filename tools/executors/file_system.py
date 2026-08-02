@@ -93,6 +93,8 @@ def exec_search_files(query: str, path: str = None, **kwargs) -> str:
                     break
             if len(results) > 50:
                 break
+        if len(results) > 50:
+            break
                 
     if not results:
         return f"No files found matching '{query}' in {', '.join(search_dirs)}"

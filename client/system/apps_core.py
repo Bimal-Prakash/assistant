@@ -141,8 +141,8 @@ class AppManagementMixin:
         raw_app = re.sub(r"\s+app$", "", raw_app).strip()
         raw_app = re.sub(r"\s+web$", "", raw_app).strip()
         self.pending_alias_suggestion = None
-        app = self.dynamic_aliases.get(
-            raw_app, APP_ALIASES.get(raw_app, raw_app))
+        aliases = getattr(self, 'dynamic_aliases', {})
+        app = aliases.get(raw_app, APP_ALIASES.get(raw_app, raw_app))
         app_map = {
             "chrome": ["cmd", "/c", "start", "chrome"],
             "notepad": ["notepad"],

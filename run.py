@@ -190,9 +190,37 @@ def start_microphone_stt(command_queue: "queue.Queue[str]", energy_threshold: Op
                                 
                             wake_word_detected = False
                             
+                            
+                            zero_count = 0
                             while running[0] and not pause_event.is_set():
+                                # Prevent blocking forever if the audio driver dies or device switches
+                                wait_time = 0.0
+                                while running[0] and not pause_event.is_set():
+                                    try:
+                                        available = source.stream.pyaudio_stream.get_read_available()
+                                    except Exception:
+                                        raise RuntimeError("Stream closed unexpectedly.")
+                                    if available >= CHUNK:
+                                        break
+                                    time.sleep(0.02)
+                                    wait_time += 0.02
+                                    if wait_time > 2.0:
+                                        raise RuntimeError("Microphone read timeout. Device may have disconnected.")
+                                
+                                if not running[0] or pause_event.is_set():
+                                    break
+                                    
                                 audio_chunk = source.stream.read(CHUNK)
                                 audio_data = np.frombuffer(audio_chunk, dtype=np.int16)
+                                
+                                # Detect if microphone is returning pure zeroes (dead stream)
+                                if np.max(audio_data) == 0 and np.min(audio_data) == 0:
+                                    zero_count += 1
+                                    if zero_count > (RATE / CHUNK) * 3: # 3 seconds of pure zeros
+                                        raise RuntimeError("Microphone is dead (reading only zeroes).")
+                                else:
+                                    zero_count = 0
+
                                 prediction = oww_model.predict(audio_data)
                                 
                                 # Higher threshold prevents false positives from background noise
@@ -272,8 +300,10 @@ def run_assistant(start_server: bool, text_mode: bool, energy_threshold: Optiona
                 timeout=120
             )
             logging.info("Ollama model pre-warmed successfully. First command will be instant!")
+            print("[UI_SIGNAL] READY", flush=True)
         except Exception as e:
             logging.warning(f"Ollama pre-warm failed: {e}")
+            print("[UI_SIGNAL] READY", flush=True)
 
     threading.Thread(target=prewarm_ollama, daemon=True).start()
 
@@ -349,7 +379,8 @@ def run_assistant(start_server: bool, text_mode: bool, energy_threshold: Optiona
                 if woke:
                     client.session_id = str(uuid.uuid4())
                     if not normalized_payload:
-                        active = False
+                        with active_tasks_lock:
+                            active = False
                         continue
                     command = payload
                     normalized = normalized_payload
@@ -357,15 +388,17 @@ def run_assistant(start_server: bool, text_mode: bool, energy_threshold: Optiona
                 continue
 
             if is_idle_command(normalized):
-                active = False
-                pending_clarification = None
+                with active_tasks_lock:
+                    active = False
+                    pending_clarification = None
                 continue
 
             cmd_lower = command.lower().strip()
-            if pending_clarification:
-                command = f"{pending_clarification} {command}"
-                cmd_lower = command.lower().strip()
-                pending_clarification = None
+            with active_tasks_lock:
+                if pending_clarification:
+                    command = f"{pending_clarification} {command}"
+                    cmd_lower = command.lower().strip()
+                    pending_clarification = None
 
             def process_single_command(cmd: str):
                 nonlocal active, pending_clarification, active_tasks
@@ -374,6 +407,8 @@ def run_assistant(start_server: bool, text_mode: bool, energy_threshold: Optiona
                     result = client.execute_pc_action(action)
                     if action.get("response"):
                         print(f"[UI_SIGNAL] RESPONSE: {action['response']}", flush=True)
+                    elif isinstance(result, str) and result:
+                        print(f"[UI_SIGNAL] RESPONSE: {result}", flush=True)
                 except Exception as exc:
                     log.exception("Command failed")
                     fail_msg = f"Command failed: {exc}"
@@ -388,7 +423,8 @@ def run_assistant(start_server: bool, text_mode: bool, energy_threshold: Optiona
                                 active = False
 
             if cmd_lower in ["open", "close", "minimize", "minimise", "play", "call"]:
-                pending_clarification = cmd_lower
+                with active_tasks_lock:
+                    pending_clarification = cmd_lower
                 prompts = {
                     "open": "What would you like to open?",
                     "close": "What would you like to close?",

@@ -97,6 +97,10 @@ JARVIS_MEMORY_FACT_LIMIT = int(os.getenv("JARVIS_MEMORY_FACT_LIMIT", "20"))
 
 ENABLE_PROACTIVE_BACKGROUND_TASKS = os.getenv("ENABLE_PROACTIVE_BACKGROUND_TASKS", "False").lower() in ("true", "1", "yes")
 
-
-
-
+CLIENT_ACTIONS = {
+    "open_app", "close_app", "minimize_app", "maximize_app", "restore_app",
+    "hide_all_windows", "snap_window", "read_clipboard",
+    "write_clipboard", "press_shortcut", "check_performance", "lock_pc",
+    "empty_recycle_bin", "save_screenshot_to_desktop", "show_notification", "set_timer",
+    "open_folder", "open_file", "whatsapp_call", "open_website", "send_whatsapp", "type_string"
+}

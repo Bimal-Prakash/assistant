@@ -150,13 +150,14 @@ def exec_semantic_search_obsidian(query: str) -> str:
             logger.warning(f"Error checking vault mtime: {e}")
 
     if needs_update:
-        logger.info("Obsidian vault changes detected. Auto-indexing in background...")
+        logger.info("Obsidian vault changes detected. Auto-indexing (blocking until complete)...")
         import subprocess
         script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "scripts", "index_obsidian.py")
         try:
-            subprocess.Popen(["python", script_path])
+            subprocess.run(["python", script_path], check=True)
+            logger.info("Auto-indexing completed successfully.")
         except Exception as e:
-            logger.error(f"Failed to trigger auto-index Obsidian vault: {e}")
+            logger.error(f"Failed to auto-index Obsidian vault: {e}")
 
     try:
         client = chromadb.PersistentClient(path=db_path)

@@ -166,12 +166,18 @@ class AgenticControlMixin:
 
     def _show_notification(self, title: str, message: str) -> str:
         # Using PowerShell fallback directly to avoid win10toast dependency issues
+        # Base64 encode to prevent PowerShell command injection
+        import base64
+        title_b64 = base64.b64encode(title.encode('utf-8')).decode('utf-8')
+        message_b64 = base64.b64encode(message.encode('utf-8')).decode('utf-8')
         ps_script = f"""
         [reflection.assembly]::loadwithpartialname("System.Windows.Forms")
         $notify = new-object system.windows.forms.notifyicon
         $notify.icon = [system.drawing.systemicons]::information
         $notify.visible = $true
-        $notify.showballoontip(10,"{title}","{message}",[system.windows.forms.tooltipicon]::None)
+        $title = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("{title_b64}"))
+        $message = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("{message_b64}"))
+        $notify.showballoontip(10,$title,$message,[system.windows.forms.tooltipicon]::None)
         """
         subprocess.run(["powershell", "-Command", ps_script], check=False)
         return f"Showing notification: {title}"
@@ -207,7 +213,7 @@ class AgenticControlMixin:
             # 1. Clean the input using regex
             import re
             clean_name = folder_path.lower()
-            clean_name = re.sub(r'\b(jarvis|open|my|the|folder|directory|file|named|name|it is|which is|that is|located|in [a-z] drive)\b', '', clean_name)
+            clean_name = re.sub(r'\b(jarvis|open|my|the|folder|directory|file|named|name|it is|which is|that is|located|in [a-zA-Z] drive)\b', '', clean_name)
             # Clean up extra spaces
             clean_name = re.sub(r'\s+', ' ', clean_name).strip()
 
@@ -433,54 +439,52 @@ class AgenticControlMixin:
 
         # Click call button using correct shortcuts with robust key presses and fallbacks
         if call_type == 'video':
-            pyautogui.hotkey('ctrl', 'shift', 'v')
-            time.sleep(0.3)
-            pyautogui.hotkey('alt', 'shift', 'v')
-
             # Fallback: Image Recognition
             try:
                 btn_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "video_call_btn.png")
                 if os.path.exists(btn_path):
-                    button_location = pyautogui.locateOnScreen(btn_path, confidence=0.8, grayscale=True)
+                    button_location = pyautogui.locateOnScreen(btn_path, confidence=0.7, grayscale=True)
                     if button_location:
                         pyautogui.click(pyautogui.center(button_location))
                         return f"Initiating video call with {contact_name}"
             except Exception:
                 pass
 
-            # Fallback: Coordinate click
+            # Fallback: Coordinate click (Window Title might fail for UWP, so use screen size)
             try:
                 windows = gw.getWindowsWithTitle("WhatsApp")
                 if windows:
                     w = windows[0]
                     pyautogui.click(x=w.right - 200, y=w.top + 55)
+                else:
+                    screen_width, _ = pyautogui.size()
+                    pyautogui.click(x=screen_width - 250, y=55) # Video call is typically left of audio call
             except Exception:
                 pass
 
             print(f"[Benchmark] Call started: {time.time() - start_t:.2f}s")
             return f"Initiating video call with {contact_name}"
         else:
-            pyautogui.hotkey('ctrl', 'shift', 'a')
-            time.sleep(0.3)
-            pyautogui.hotkey('alt', 'shift', 'a')
-
             # Fallback: Image Recognition
             try:
                 btn_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "audio_call_btn.png")
                 if os.path.exists(btn_path):
-                    button_location = pyautogui.locateOnScreen(btn_path, confidence=0.8, grayscale=True)
+                    button_location = pyautogui.locateOnScreen(btn_path, confidence=0.7, grayscale=True)
                     if button_location:
                         pyautogui.click(pyautogui.center(button_location))
                         return f"Initiating audio call with {contact_name}"
             except Exception:
                 pass
 
-            # Fallback: Coordinate click
+            # Fallback: Coordinate click (Window Title might fail for UWP, so use screen size)
             try:
                 windows = gw.getWindowsWithTitle("WhatsApp")
                 if windows:
                     w = windows[0]
                     pyautogui.click(x=w.right - 250, y=w.top + 55)
+                else:
+                    screen_width, _ = pyautogui.size()
+                    pyautogui.click(x=screen_width - 190, y=55) # Voice call is typically right of video call
             except Exception:
                 pass
 

@@ -111,19 +111,8 @@ class ProactiveDaemon(threading.Thread):
                         logger.info("Proactive thought generated: %s", text)
 
                         # --- AGI Thought Logging to Obsidian ---
-                        import os, contextlib
-                        with contextlib.suppress(Exception):
-                            obsidian_path = os.environ.get("JARVIS_THOUGHTS_PATH")
-                            if obsidian_path:
-                                if os.path.exists(obsidian_path) and os.path.getsize(obsidian_path) > 2 * 1024 * 1024:
-                                    timestamp_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                                    archive_path = obsidian_path.replace(".md", f"_{timestamp_str}.md")
-                                    os.rename(obsidian_path, archive_path)
-                                
-                                now_dt = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                with open(obsidian_path, "a", encoding="utf-8") as f:
-                                    f.write(f"### [{now_dt}] (Unprompted Observation)\n")
-                                    f.write(f"- **Internal Monologue:** {text}\n\n")
+                        from core.utils import log_thought_to_obsidian
+                        log_thought_to_obsidian(text, context_label="Unprompted Observation")
                         action = ActionResponse(
                             action="type_text",
                             text=text,

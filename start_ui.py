@@ -228,6 +228,10 @@ class DynamicIsland(QWidget):
         self.update() # triggers paintEvent
 
     def animate_state_change(self, new_state):
+        if new_state == "ready":
+            self.show()
+            new_state = "idle"
+
         display_text = ""
         if new_state.startswith("displaying:"):
             display_text = new_state.split(":", 1)[1]
@@ -238,11 +242,22 @@ class DynamicIsland(QWidget):
                 return
             new_state = "idle"
 
+        if new_state != "displaying" and hasattr(self, 'display_timer'):
+            self.display_timer.stop()
+
         if self.current_state == new_state and self.display_text == display_text:
             return
         
         self.current_state = new_state
         self.display_text = display_text
+        
+        if new_state == "displaying":
+            if not hasattr(self, 'display_timer'):
+                self.display_timer = QTimer(self)
+                self.display_timer.setSingleShot(True)
+                self.display_timer.timeout.connect(lambda: self.state_changed_signal.emit("idle"))
+            duration = 5000 + (len(display_text) * 50)
+            self.display_timer.start(duration)
         
         target_width = self.idle_width
         target_height = 40
@@ -472,7 +487,9 @@ class DynamicIsland(QWidget):
                     line_stripped = line.strip()
                     print(f"[Backend] {line_stripped}", flush=True)
 
-                    if "[UI_SIGNAL] WAKE_WORD_DETECTED" in line_stripped:
+                    if "[UI_SIGNAL] READY" in line_stripped:
+                        self.state_changed_signal.emit("ready")
+                    elif "[UI_SIGNAL] WAKE_WORD_DETECTED" in line_stripped:
                         self.state_changed_signal.emit("listening")
                     elif "[UI_SIGNAL] RESPONSE:" in line_stripped:
                         text = line_stripped.split("[UI_SIGNAL] RESPONSE:", 1)[1].strip()
@@ -630,6 +647,7 @@ class DynamicIsland(QWidget):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
     island = DynamicIsland()
-    island.show()
+    # We will show the island when the READY signal is received
     sys.exit(app.exec())

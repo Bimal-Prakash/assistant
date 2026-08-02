@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 from json import JSONDecodeError
 from typing import Any, Dict, List, Optional, Tuple
@@ -110,7 +111,7 @@ def _build_prompt(
     tools_block: str,
     conversation_history: List[Dict[str, str]],
     execution_log: str = "",
-) -> str:
+) -> Tuple[str, str]:
     if conversation_history:
         history_lines = []
         for turn in conversation_history:
@@ -146,7 +147,6 @@ class ConversationManager:
         self._ttl = ttl_seconds
 
     def add_turn(self, session_id: str, role: str, content: str) -> None:
-        import time
         now = time.time()
         if session_id not in self._sessions:
             self._sessions[session_id] = {"turns": [], "last_active": now}
@@ -157,7 +157,6 @@ class ConversationManager:
         if len(session["turns"]) > self._max_turns * 2:
             session["turns"] = session["turns"][-(self._max_turns * 2):]
 
-        import threading
         threading.Thread(target=self._index_chat_turn, args=(role, content), daemon=True).start()
 
     def _index_chat_turn(self, role: str, content: str):
@@ -332,9 +331,9 @@ class OllamaCommandModel:
                 }
             }
             if self.keep_alive_seconds > 0:
-                payload["keep_alive"] = f"{self.keep_alive_seconds}s"
+                payload["keep_alive"] = self.keep_alive_seconds
             elif self.keep_alive_seconds == -1:
-                payload["keep_alive"] = "-1"
+                payload["keep_alive"] = -1
 
             import requests
             response = requests.post(self.api_url, json=payload, timeout=self.timeout_seconds)
@@ -435,33 +434,15 @@ class OllamaCommandModel:
 
             # --- AGI Thought Logging to Obsidian ---
             if thought:
-                import os, datetime
-                import contextlib
-                from core.redactor import privacy_filter
-                with contextlib.suppress(Exception):
-                    obsidian_path = os.environ.get("JARVIS_THOUGHTS_PATH")
-                    
-                    if obsidian_path:
-                        # Auto-archive if the file gets larger than 2MB to prevent monolithic slowdowns
-                        if os.path.exists(obsidian_path) and os.path.getsize(obsidian_path) > 2 * 1024 * 1024:
-                            timestamp_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                            archive_path = obsidian_path.replace(".md", f"_{timestamp_str}.md")
-                            os.rename(obsidian_path, archive_path)
-
-                        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        safe_thought = privacy_filter.scrub(thought)
-                        safe_args = privacy_filter.scrub(json.dumps(tool_args, ensure_ascii=False))
-                        with open(obsidian_path, "a", encoding="utf-8") as f:
-                            f.write(f"### [{now}]\n")
-                            f.write(f"- **Thought:** {safe_thought}\n")
-                            f.write(f"- **Action:** `{tool_name}` with args: `{safe_args}`\n\n")
+                from core.utils import log_thought_to_obsidian
+                log_thought_to_obsidian(thought, f"`{tool_name}` with args: `{json.dumps(tool_args, ensure_ascii=False)}`")
 
             # Detect repeated tool calls to prevent infinite loops
             call_sig = json.dumps({"tool": tool_name, "args": tool_args}, sort_keys=True)
             if call_sig in previous_calls:
                 previous_calls[call_sig] += 1
-                if previous_calls[call_sig] >= 2:
-                    logger.warning("Agent repeated same tool call 2 times. Forcing abort to prevent loop.")
+                if previous_calls[call_sig] >= 3:
+                    logger.warning("Agent repeated same tool call 3 times. Forcing abort to prevent loop.")
                     return self._make_speak_action("I don't have enough information to answer that.", default_target)
                 
                 logger.warning("Agent repeated same tool call. Injecting error to prompt.")
@@ -517,13 +498,7 @@ class OllamaCommandModel:
 
             # ---- Client-side actions ----
             # These return JSON with _client_action; we return them to the client.
-            CLIENT_ACTIONS = {
-                "open_app", "close_app", "minimize_app", "maximize_app", "restore_app",
-                "hide_all_windows", "snap_window", "read_clipboard",
-                "write_clipboard", "press_shortcut", "check_performance", "lock_pc",
-                "empty_recycle_bin", "save_screenshot_to_desktop", "show_notification", "set_timer",
-                "open_folder", "open_file", "whatsapp_call", "open_website", "send_whatsapp", "type_string"
-            }
+            from core.config import CLIENT_ACTIONS
             # Inject client device so the registry knows whether to execute backend UI automation
             if isinstance(tool_args, dict):
                 tool_args["client_device"] = client_device
