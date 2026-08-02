@@ -6,9 +6,6 @@ def exec_maximize_app(app: str) -> str:
 def exec_restore_app(app: str) -> str:
     return json.dumps({"_client_action": "restore_app", "app": app.strip().lower()})
 
-def exec_focus_app(app: str) -> str:
-    return json.dumps({"_client_action": "focus_app", "app": app.strip().lower()})
-
 def exec_hide_all_windows() -> str:
     return json.dumps({"_client_action": "hide_all_windows"})
 

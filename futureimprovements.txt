@@ -1,0 +1,4 @@
+ChromaDB Thread Safety: The chat history indexer and the semantic search tools might collide and lock the SQLite database if they try to access it at the exact same millisecond.
+Lingering Dead Code: focus_app is removed from the registry but still referenced in a few configuration files.
+UI Hardcodes: The Dynamic Island UI uses hardcoded coordinates for the media buttons, which could break on different screen sizes or scaling settings.
+Obsidian Auto-Indexer: The semantic search doesn't know when you add new notes; it only indexes once when the database is missing. 

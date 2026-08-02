@@ -514,8 +514,17 @@ class DynamicIsland(QWidget):
             y = event.position().y()
             center_x = self.width() // 2
             
+            # Layout Constants
+            PROG_Y_MIN, PROG_Y_MAX = 74, 94
+            BTN_Y_MIN, BTN_Y_MAX = 100, 150
+            PREV_X_MIN, PREV_X_MAX = center_x - 120, center_x - 70
+            PLAY_X_MIN, PLAY_X_MAX = center_x - 20, center_x + 25
+            NEXT_X_MIN, NEXT_X_MAX = center_x + 75, center_x + 125
+            FOCUS_Y_MIN, FOCUS_Y_MAX = 20, 80
+            FOCUS_X_MIN, FOCUS_X_MAX = 20, 300
+            
             # Progress Bar Click
-            if 74 <= y <= 94 and getattr(self, 'media_end', 0) > 0:
+            if PROG_Y_MIN <= y <= PROG_Y_MAX and getattr(self, 'media_end', 0) > 0:
                 bar_w = self.width() - 110 # 55 padding on each side
                 click_x = x - 55
                 pct = max(0.0, min(1.0, click_x / bar_w))
@@ -524,23 +533,23 @@ class DynamicIsland(QWidget):
                 return
                 
             # Check button areas
-            if 100 <= y <= 150:
+            if BTN_Y_MIN <= y <= BTN_Y_MAX:
                 # VK_MEDIA_NEXT_TRACK = 0xB0, PREV = 0xB1, PLAY_PAUSE = 0xB3
-                if center_x - 120 <= x <= center_x - 70:
+                if PREV_X_MIN <= x <= PREV_X_MAX:
                     ctypes.windll.user32.keybd_event(0xB1, 0, 0, 0) # Prev
                     return
-                elif center_x - 20 <= x <= center_x + 25:
+                elif PLAY_X_MIN <= x <= PLAY_X_MAX:
                     import time
                     self.last_toggle_time = time.time()
                     ctypes.windll.user32.keybd_event(0xB3, 0, 0, 0) # Play/Pause
                     self.is_playing = not self.is_playing  # Toggle UI state
                     self.update() # Force repaint to show new icon immediately
                     return
-                elif center_x + 75 <= x <= center_x + 125:
+                elif NEXT_X_MIN <= x <= NEXT_X_MAX:
                     ctypes.windll.user32.keybd_event(0xB0, 0, 0, 0) # Next
                     return
             # Title & Artist & Image click area (Focus App)
-            if 20 <= y <= 80 and 20 <= x <= 300 and self.media_app_name:
+            if FOCUS_Y_MIN <= y <= FOCUS_Y_MAX and FOCUS_X_MIN <= x <= FOCUS_X_MAX and self.media_app_name:
                 import threading
                 def focus_app():
                     try:

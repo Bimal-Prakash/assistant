@@ -1,10 +1,7 @@
 import logging
 from typing import Optional
 from core.schemas import ActionResponse
-from server.dependencies import (
-    model_client, MEMORY_STORE, _CONFIRMATION_LOCK,
-    PENDING_POWER_CONFIRMATIONS, PENDING_TERMINAL_CONFIRMATIONS
-)
+from server.dependencies import model_client, MEMORY_STORE
 from server.parser.normalizer import _normalize_action
 
 logger = logging.getLogger("jarvis.server.api.processor.llm")
@@ -21,6 +18,7 @@ class LLMMixin:
                 default_target=self.default_target,
                 memory_context=memory_context,
                 session_id=getattr(self, "session_id", "default"),
+                client_device=self.client,
             )
         except Exception as exc:
             logger.error("Agent Loop error: %s", exc)
@@ -32,23 +30,6 @@ class LLMMixin:
                     target=self.default_target,
                 )
             )
-
-        # Check if agent loop requests confirmation registration
-        if action_obj and action_obj.get("_needs_confirmation"):
-            tool_name = action_obj.get("_pending_tool")
-            tool_args = action_obj.get("_pending_args", {})
-            if tool_name in ["power_control", "shutdown_pc", "shutdown"]:
-                with _CONFIRMATION_LOCK:
-                    PENDING_POWER_CONFIRMATIONS[self.confirmation_key] = {
-                        "type": tool_args.get("type", "shutdown"),
-                        "target": self.default_target,
-                    }
-            elif tool_name == "run_terminal":
-                with _CONFIRMATION_LOCK:
-                    PENDING_TERMINAL_CONFIRMATIONS[self.confirmation_key] = {
-                        "command": tool_args.get("command", ""),
-                        "target": self.default_target,
-                    }
 
         # The agent loop returns a ready-to-use action dict.
         # Normalize it for safety validation, then finalize.

@@ -13,7 +13,5 @@ MEMORY_STORE = PostgresMemoryStore(
 model_client = OllamaCommandModel()
 
 _CONFIRMATION_LOCK = threading.Lock()
-PENDING_POWER_CONFIRMATIONS: Dict[str, Dict[str, str]] = {}
 PENDING_SYSTEM_CONTROL_CLARIFICATIONS: Dict[str, Dict[str, Any]] = {}
-PENDING_TERMINAL_CONFIRMATIONS: Dict[str, Dict[str, str]] = {}
 SYSTEM_CONTROL_CLARIFY_TTL_SECONDS = 15.0

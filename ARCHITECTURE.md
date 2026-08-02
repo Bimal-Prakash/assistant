@@ -38,9 +38,12 @@ The project relies entirely on open-source and native Python integrations:
 - **Spotipy**: Connects to Spotify APIs for media playback and management.
 - **Pyperclip**: Enables lightning-fast, zero-vision ChatGPT interactions by silently reading clipboard output.
 
-### Data Storage & RAG Memory
+### Data Storage, Memory, & Threading
 - **SQLite3**: A local database (`jarvis_memory.sqlite3`) for persistent memory, allowing the agent to remember user facts and interaction history without sending data to the cloud.
-- **ChromaDB**: Used for both Semantic Intent Routing (caching voice commands) and Retrieval-Augmented Generation (RAG) by vectorizing personal Obsidian Markdown notes. Includes intelligent non-greedy regex parsing for Alias Resolution (e.g., matching contact names from `aboutme.md` text).
+- **ChromaDB**: Used for both Semantic Intent Routing (caching voice commands) and Retrieval-Augmented Generation (RAG) by vectorizing personal Obsidian Markdown notes. 
+  - **Thread Safety**: ChromaDB instantiation is explicitly wrapped in `threading.Lock()` to prevent SQLite locking collisions during multi-threaded background indexing and semantic search queries.
+  - **Auto-Indexer**: Intelligent `mtime` scanning detects changes to the Obsidian vault and triggers background indexing without blocking the UI.
+- **Data Privacy (PII Scrubbing)**: A central `PrivacyFilter` actively intercepts all logs and LLM prompts, redacting emails, phone numbers, and IP addresses via Regex before they are processed.
 
 ### NLP, Context, & UI Automation
 - **spaCy**: Used for Natural Language Parsing (`en_core_web_sm`) to cleanly extract application names and entities from user speech.

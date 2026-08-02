@@ -117,6 +117,23 @@ class ToolRegistry:
                 return f"Error: Missing required arguments: {', '.join(missing)}. Do NOT retry this tool blindly. If you lack the required info, use final_answer to ask the user!"
 
         try:
+            client_device = args.get("client_device", "pc")
+            
+            # Check if this tool is a client action mapped to the backend native execution
+            CLIENT_ACTIONS = {
+                "open_app", "close_app", "minimize_app", "maximize_app", "restore_app",
+                "hide_all_windows", "snap_window", "read_clipboard",
+                "write_clipboard", "press_shortcut", "check_performance", "lock_pc",
+                "empty_recycle_bin", "save_screenshot_to_desktop", "show_notification", "set_timer",
+                "open_folder", "open_file", "whatsapp_call", "open_website", "send_whatsapp", "type_string"
+            }
+            if name in CLIENT_ACTIONS and client_device == "pc":
+                from tools.executors.windows_automation import exec_pc_action
+                return exec_pc_action(name, **args)
+            
+            # Execute normally for android, or non-client tools
+            if "client_device" in args:
+                del args["client_device"]
             return tool.executor(**args)
         except Exception as exc:
             logger.exception("Tool %s execution failed", name)
@@ -194,7 +211,6 @@ def build_default_registry() -> ToolRegistry:
             "query": {"type": "string", "description": "Search query"},
         }, "required": ["query"]},
         executor=exec_search_web,
-        risk_tier="external",
         data_access=["network"],
     ))
 

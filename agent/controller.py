@@ -23,15 +23,7 @@ def verify_action_success(action_name: str, args: Dict[str, Any], pre_state: str
         if app and app in post_lower.split("### clipboard snippet")[0]:  # Only check window/UI part, not clipboard
             return f"Verification Failed: You tried to close '{app}', but it still appears to be open or active."
             
-    elif action_name in ["type_ui_element", "type_string"]:
-        text = args.get("text", args.get("string_to_type", "")).lower()
-        # Check if the text actually ended up somewhere in the UI or active window. 
-        # (This is a loose heuristic but helps catch complete misses)
-        if text and len(text) > 3 and text not in post_lower:
-            # We don't fail hard here because passwords or masked fields won't show it, 
-            # but we can warn the LLM.
-            pass
-            
+
     # For many actions (like getting system info, or web search), 
     # the tool's own string output is the verification, so we trust it if it didn't throw an exception.
     

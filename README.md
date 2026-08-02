@@ -24,6 +24,8 @@ https://youtu.be/pfRlhW-oROw
 - **Context-Aware Zero-Latency App Control**: Scans the Z-order window hierarchy with `pygetwindow`, intelligently ignores IDE/terminals, and precisely closes the media player or app you were just looking at when saying "close it".
 - **Deep Parallel File Search**: Dynamically parses queries (e.g., "open portfolio from downloads folder") by splitting contextual prepositions ("in", "inside", "from"). Multi-threaded workers instantly search the filesystem using prefix matching.
 - **Native Power Control & Safety Interceptor**: Maps commands like "go to sleep" and "shutdown" directly to native Windows APIs. Sensitive actions (like shutdown or restart) are actively intercepted by a **Confirmation Workflow** to prevent accidental data loss.
+- **Privacy-First PII Redaction**: An embedded privacy filter automatically scrubs Personal Identifiable Information (names, emails, IP addresses, phone numbers) before they are logged or passed to the LLM context.
+- **Robust Multi-Threading**: Core databases like ChromaDB use explicit thread locks to prevent SQLite locking collisions during parallel semantic searches or memory background indexing.
 - **Tool-Using Agent**: Uses Ollama with `qwen2.5:3b` (default) for intelligent intent routing, file system management, identity recall, and multi-step tool execution.
 
 ## Requirements
@@ -191,6 +193,8 @@ assistant/
 Before publishing as open source:
 1. Delete `jarvis_memory.sqlite3` (contains personal facts like your name)
 2. Ensure `.env` and `__pycache__/` are added to `.gitignore`.
+
+*Note: The assistant natively employs a Regex-based Privacy Filter (`core/redactor.py`) that scrubs sensitive variables (like email addresses and IPs) from execution logs and raw LLM prompts, keeping your data safely air-gapped on your PC.*
 
 ## System Requirements
 

@@ -32,6 +32,7 @@ def get_current_media_info() -> str:
     
     async def _get_info():
         try:
+            # pyrefly: ignore [missing-import]
             from winsdk.windows.media.control import GlobalSystemMediaTransportControlsSessionManager
         except ImportError:
             return "Error: winsdk is not installed."

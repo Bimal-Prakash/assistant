@@ -21,7 +21,7 @@ from .file_system import exec_list_directory, exec_read_file, exec_write_file, e
 from .system_observe import exec_observe_desktop
 
 from .agentic import (
-    exec_maximize_app, exec_restore_app, exec_focus_app, exec_hide_all_windows, exec_snap_window,
+    exec_maximize_app, exec_restore_app, exec_hide_all_windows, exec_snap_window,
     exec_read_clipboard, exec_write_clipboard, exec_press_shortcut,
     exec_check_performance, exec_lock_pc, exec_empty_recycle_bin, exec_take_screenshot,
     exec_show_notification, exec_set_timer, exec_open_folder,
@@ -55,7 +55,7 @@ __all__ = [
     "exec_final_answer",
     "exec_write_file", "exec_list_directory", "exec_read_file", "exec_search_files",
     "exec_look_at_screen", "exec_vision_click", "exec_ask_chatgpt_visually",
-    "exec_maximize_app", "exec_restore_app", "exec_focus_app", "exec_hide_all_windows", "exec_snap_window",
+    "exec_maximize_app", "exec_restore_app", "exec_hide_all_windows", "exec_snap_window",
     "exec_read_clipboard", "exec_write_clipboard", "exec_press_shortcut",
     "exec_check_performance", "exec_lock_pc", "exec_empty_recycle_bin", "exec_take_screenshot",
     "exec_show_notification", "exec_set_timer", "exec_open_folder", "exec_open_file", "exec_search_files",

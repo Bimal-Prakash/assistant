@@ -9,6 +9,7 @@ Conversation history is maintained across turns for multi-turn context.
 import json
 import logging
 import os
+import re
 import time
 from json import JSONDecodeError
 from typing import Any, Dict, List, Optional, Tuple
@@ -27,6 +28,8 @@ class ModelError(Exception):
 
 _CHROMA_CLIENT = None
 _CHROMA_COLLECTION = None
+import threading
+_CHROMA_LOCK = threading.Lock()
 
 
 # ------------------------------------------------------------------
@@ -61,6 +64,15 @@ def _extract_json(raw_text: str) -> Dict[str, Any]:
                 return obj
         except JSONDecodeError:
             continue
+
+    final_answer_match = re.match(r"^\**\s*final_answer\s*\**\s*:\s*(.+)$", text, flags=re.IGNORECASE | re.DOTALL)
+    if final_answer_match:
+        answer = final_answer_match.group(1).strip()
+        return {
+            "thought": "The model returned a final answer in plain text instead of JSON. I will normalize it.",
+            "tool": "final_answer",
+            "tool_args": {"text": answer},
+        }
 
     raise JSONDecodeError("No JSON object found", text, 0)
 
@@ -153,23 +165,24 @@ class ConversationManager:
             return
 
         try:
-            global _CHROMA_CLIENT, _CHROMA_COLLECTION
-            if _CHROMA_CLIENT is None:
-                # pyrefly: ignore [missing-import]
-                import chromadb
-                # pyrefly: ignore [missing-import]
-                from chromadb.utils.embedding_functions import OllamaEmbeddingFunction
-                from core.config import OLLAMA_API_URL
-                import os
+            global _CHROMA_CLIENT, _CHROMA_COLLECTION, _CHROMA_LOCK
+            with _CHROMA_LOCK:
+                if _CHROMA_CLIENT is None:
+                    # pyrefly: ignore [missing-import]
+                    import chromadb
+                    # pyrefly: ignore [missing-import]
+                    from chromadb.utils.embedding_functions import OllamaEmbeddingFunction
+                    from core.config import OLLAMA_API_URL
+                    import os
 
-                db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "chroma_db_chat")
-                _CHROMA_CLIENT = chromadb.PersistentClient(path=db_path)
-                base_url = OLLAMA_API_URL.replace("/api/generate", "")
-                ef = OllamaEmbeddingFunction(
-                    model_name="nomic-embed-text",
-                    url=f"{base_url}/api/embeddings"
-                )
-                _CHROMA_COLLECTION = _CHROMA_CLIENT.get_or_create_collection(name="chat_history", embedding_function=ef)
+                    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "chroma_db_chat")
+                    _CHROMA_CLIENT = chromadb.PersistentClient(path=db_path)
+                    base_url = OLLAMA_API_URL.replace("/api/generate", "")
+                    ef = OllamaEmbeddingFunction(
+                        model_name="nomic-embed-text",
+                        url=f"{base_url}/api/embeddings"
+                    )
+                    _CHROMA_COLLECTION = _CHROMA_CLIENT.get_or_create_collection(name="chat_history", embedding_function=ef)
             import time
 
             doc_id = f"{int(time.time()*1000)}_{role}"
@@ -212,6 +225,7 @@ class OllamaCommandModel:
         self.keep_alive_seconds = OLLAMA_KEEP_ALIVE_SECONDS
         self.registry: ToolRegistry = build_default_registry()
         self.conversations = ConversationManager()
+        self.pending_actions: Dict[str, Dict[str, Any]] = {}
         self._register_mcp_tools()
 
     def _register_mcp_tools(self) -> None:
@@ -348,6 +362,7 @@ class OllamaCommandModel:
         memory_context: str = "",
         session_id: str = "default",
         max_iterations: int = 5,
+        client_device: str = "pc",
     ) -> Dict[str, Any]:
         """
         Runs the ReAct agent loop.
@@ -355,6 +370,20 @@ class OllamaCommandModel:
         """
         # Record user turn in conversation
         self.conversations.add_turn(session_id, "user", user_text)
+
+        # Check pending actions for confirmation
+        forced_action = None
+        if session_id in self.pending_actions:
+            import re
+            user_lower = user_text.lower()
+            is_confirming = bool(re.search(r'\b(yes|yeah|do it|proceed|confirm|ok|sure|go ahead|yep|y)\b', user_lower))
+            
+            pending = self.pending_actions.pop(session_id)
+            if is_confirming:
+                logger.info(f"User confirmed pending action: {pending['tool']}")
+                forced_action = pending
+            else:
+                logger.info(f"User rejected pending action: {pending['tool']}")
 
         # Stage 1: Classify Intent
         category = self._classify_intent(user_text)
@@ -385,11 +414,15 @@ class OllamaCommandModel:
                 execution_log=execution_log + f"\n\n[System Observation Before Action]\n{pre_observe}",
             )
 
-            try:
-                action_obj, _ = self._call_model(sys_prompt, user_prompt, None)
-            except ModelError as e:
-                logger.error("Agent model error on step %d: %s", step_count, e)
-                return self._make_speak_action("I encountered an error while thinking.", default_target)
+            if forced_action and step_count == 1:
+                action_obj = forced_action
+                action_obj["thought"] = "User explicitly confirmed this action. Executing now."
+            else:
+                try:
+                    action_obj, _ = self._call_model(sys_prompt, user_prompt, None)
+                except ModelError as e:
+                    logger.error("Agent model error on step %d: %s", step_count, e)
+                    return self._make_speak_action("I encountered an error while thinking.", default_target)
 
             thought = action_obj.get("thought", "")
             tool_name = action_obj.get("tool", "")
@@ -404,6 +437,7 @@ class OllamaCommandModel:
             if thought:
                 import os, datetime
                 import contextlib
+                from core.redactor import privacy_filter
                 with contextlib.suppress(Exception):
                     obsidian_path = os.environ.get("JARVIS_THOUGHTS_PATH")
                     
@@ -415,10 +449,12 @@ class OllamaCommandModel:
                             os.rename(obsidian_path, archive_path)
 
                         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        safe_thought = privacy_filter.scrub(thought)
+                        safe_args = privacy_filter.scrub(json.dumps(tool_args, ensure_ascii=False))
                         with open(obsidian_path, "a", encoding="utf-8") as f:
                             f.write(f"### [{now}]\n")
-                            f.write(f"- **Thought:** {thought}\n")
-                            f.write(f"- **Action:** `{tool_name}` with args: `{json.dumps(tool_args, ensure_ascii=False)}`\n\n")
+                            f.write(f"- **Thought:** {safe_thought}\n")
+                            f.write(f"- **Action:** `{tool_name}` with args: `{safe_args}`\n\n")
 
             # Detect repeated tool calls to prevent infinite loops
             call_sig = json.dumps({"tool": tool_name, "args": tool_args}, sort_keys=True)
@@ -443,9 +479,14 @@ class OllamaCommandModel:
                     audit_logger.log_access(tool_name, tool_obj.data_access, tool_obj.risk_tier)
                 
                 if tool_obj.risk_tier in ["dangerous", "external"]:
+                    import re
                     user_lower = user_text.lower()
-                    confirmed = any(word in user_lower for word in ["yes", "yeah", "do it", "proceed", "confirm", "ok", "sure", "go ahead"])
+                    confirmed = bool(re.search(r'\b(yes|yeah|do it|proceed|confirm|ok|sure|go ahead)\b', user_lower))
+                    if forced_action and step_count == 1:
+                        confirmed = True
+                        
                     if not confirmed:
+                        self.pending_actions[session_id] = {"tool": tool_name, "tool_args": tool_args}
                         return {
                             "action": "confirm_action",
                             "target": default_target,
@@ -459,10 +500,12 @@ class OllamaCommandModel:
 
             # ---- final_answer: we're done ----
             if tool_name == "final_answer":
-                answer_text = tool_args.get("text") or tool_args.get("message") or tool_args.get("response")
-                if not answer_text and isinstance(tool_args, dict) and tool_args:
-                    # Fallback: just grab the first value in the dict
-                    answer_text = next(iter(tool_args.values()))
+                answer_text = (
+                    tool_args.get("text")
+                    or tool_args.get("message")
+                    or tool_args.get("response")
+                    or tool_args.get("answer")
+                )
 
                 if not answer_text:
                     observation = "Error: final_answer requires a 'text' argument containing what you want to say to the user. Please try again."
@@ -476,25 +519,30 @@ class OllamaCommandModel:
             # These return JSON with _client_action; we return them to the client.
             CLIENT_ACTIONS = {
                 "open_app", "close_app", "minimize_app", "maximize_app", "restore_app",
-                "focus_app", "hide_all_windows", "snap_window", "read_clipboard",
+                "hide_all_windows", "snap_window", "read_clipboard",
                 "write_clipboard", "press_shortcut", "check_performance", "lock_pc",
                 "empty_recycle_bin", "save_screenshot_to_desktop", "show_notification", "set_timer",
                 "open_folder", "open_file", "whatsapp_call", "open_website", "send_whatsapp", "type_string"
             }
+            # Inject client device so the registry knows whether to execute backend UI automation
+            if isinstance(tool_args, dict):
+                tool_args["client_device"] = client_device
+
             if tool_name in CLIENT_ACTIONS:
                 observation = self.registry.execute(tool_name, tool_args)
-                try:
-                    client_action = json.loads(observation)
-                    if isinstance(client_action, dict) and "_client_action" in client_action:
-                        action_type = client_action.pop("_client_action")
-                        response_text = f"Executing {tool_name}."
-                        self.conversations.add_turn(session_id, "assistant", response_text)
-                        result = {"action": action_type, "target": default_target, "response": response_text}
-                        result.update(client_action)
-                        return result
-                except (json.JSONDecodeError, ValueError):
-                    pass
-                # If it wasn't a client action JSON, treat as observation
+                if client_device != "pc":
+                    try:
+                        client_action = json.loads(observation)
+                        if isinstance(client_action, dict) and "_client_action" in client_action:
+                            action_type = client_action.pop("_client_action")
+                            response_text = f"Executing {tool_name}."
+                            self.conversations.add_turn(session_id, "assistant", response_text)
+                            result = {"action": action_type, "target": default_target, "response": response_text}
+                            result.update(client_action)
+                            return result
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+                # If it wasn't a client action JSON (or if it's PC native), treat as observation
                 execution_log += f"\n[Step {step_count}] Thought: {thought}\nTool: {tool_name}\nArgs: {json.dumps(tool_args)}\nObservation:\n<observation>\n{observation}\n</observation>\n"
                 continue
 

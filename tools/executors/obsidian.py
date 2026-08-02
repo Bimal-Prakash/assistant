@@ -8,11 +8,6 @@ import os
 import glob
 import logging
 from typing import Optional
-# pyrefly: ignore [missing-import]
-from dotenv import load_dotenv
-
-load_dotenv()
-
 logger = logging.getLogger("jarvis.tools.executors.obsidian")
 
 def get_vault_path() -> Optional[str]:
@@ -139,9 +134,20 @@ def exec_semantic_search_obsidian(query: str) -> str:
     needs_update = False
     if not os.path.exists(db_file):
         needs_update = True
-    # Removed slow glob.iglob check over the entire vault.
-    # Auto-indexing should be handled by a background cron job or on startup,
-    # not synchronously during a user search request.
+    elif vault_path and os.path.exists(vault_path):
+        try:
+            db_mtime = os.path.getmtime(db_file)
+            for root, dirs, files in os.walk(vault_path):
+                dirs[:] = [d for d in dirs if not d.startswith('.')]
+                for file in files:
+                    if file.endswith('.md'):
+                        if os.path.getmtime(os.path.join(root, file)) > db_mtime:
+                            needs_update = True
+                            break
+                if needs_update:
+                    break
+        except Exception as e:
+            logger.warning(f"Error checking vault mtime: {e}")
 
     if needs_update:
         logger.info("Obsidian vault changes detected. Auto-indexing in background...")

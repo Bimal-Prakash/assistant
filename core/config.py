@@ -58,7 +58,6 @@ ALLOWED_ACTIONS = {
     "minimize_app",
     "maximize_app",
     "restore_app",
-    "focus_app",
     "hide_all_windows",
     "snap_window",
     "read_clipboard",
