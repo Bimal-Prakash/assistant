@@ -85,13 +85,14 @@ class TTSMixin:
                     except Exception:
                         pass
 
-        def speak(self, text: str) -> None:
+        def speak(self, text: str, speak_aloud: bool = True) -> None:
             if not text:
                 return
             print(f"Jarvis: {text}")
             self._update_hud(action=text)
             # Fire-and-forget: TTS runs in background so actions start immediately
-            threading.Thread(target=self._speak_blocking, args=(text,), daemon=True).start()
+            if speak_aloud:
+                threading.Thread(target=self._speak_blocking, args=(text,), daemon=True).start()
 
         def stop_speaking(self) -> None:
             """Instantly halts any ongoing TTS playback."""

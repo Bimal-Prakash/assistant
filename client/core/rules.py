@@ -35,7 +35,7 @@ class RulesMixin:
                     "opening ", "closing ", "playing ", "searching ", "toggling ",
                     "skipping ", "going to previous", "increasing ", "decreasing ",
                     "setting pc ", "setting brightness", "setting volume", "adjusting ",
-                    "muting ", "opened ", "liked ", "focused ", "snapping ", "maximized ",
+                    "muting ", "opened ", "closed ", "liked ", "focused ", "snapping ", "maximized ",
                     "minimized ", "restored ", "locked ", "emptied ", "took ", "showing ",
                     "set timer", "searched ", "executing ", "done", "okay", "sure", "got it",
                     "working on it"

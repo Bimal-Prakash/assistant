@@ -32,7 +32,7 @@ class ActionExecutionMixin:
                         if app_name:
                             open_result = self._open_app(app_name, post_text=post_text)
                             if open_result.startswith("Opening "):
-                                return
+                                self.speak(open_result, speak_aloud=False)
                             else:
                                 self.speak(open_result)
                             return
@@ -43,8 +43,8 @@ class ActionExecutionMixin:
                         app_name = str(action.get("app", "")).strip()
                         if app_name:
                             close_result = self._close_app(app_name)
-                            if close_result.startswith("Closing "):
-                                return
+                            if close_result.startswith(("Closing ", "Closed ")):
+                                self.speak(close_result, speak_aloud=False)
                             else:
                                 self.speak(close_result)
                             return
@@ -55,8 +55,8 @@ class ActionExecutionMixin:
                         app_name = str(action.get("app", "")).strip()
                         if app_name:
                             min_result = getattr(self, "_minimize_app", lambda x: "Minimize not supported")(app_name)
-                            if min_result.startswith("Minimizing "):
-                                return
+                            if min_result.startswith(("Minimizing ", "Minimized ")):
+                                self.speak(min_result, speak_aloud=False)
                             else:
                                 self.speak(min_result)
                             return

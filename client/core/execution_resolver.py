@@ -48,7 +48,7 @@ def _extract_app_name(text: str) -> str:
 
 def _resolve_context_app_name(app_name: str) -> str:
     """If the app_name is a generic pronoun, uses the Z-order window list to find the active target."""
-    if not app_name or app_name.lower() in {"this", "it", "that", "that window", "the app", "the window", "current window", "the program", "this tab", "current tab", "the tab"}:
+    if not app_name or app_name.lower() in {"this", "it", "that", "that window", "the app", "the window", "current window", "the program", "this tab", "current tab", "the tab", "current website", "this website", "the website", "website", "current"}:
         try:
             # pyrefly: ignore [missing-import]
             import pygetwindow as gw

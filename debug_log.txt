@@ -1,0 +1,7 @@
+Loop error: [WinError -2147023170] The remote procedure call failed
+Traceback (most recent call last):
+  File "C:\Bimal\Project\assistant\start_ui.py", line 157, in poll_media
+    info = await session.try_get_media_properties_async()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: [WinError -2147023170] The remote procedure call failed
+
